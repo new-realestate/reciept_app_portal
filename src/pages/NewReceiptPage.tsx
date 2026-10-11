@@ -2,19 +2,48 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { receiptsApi } from "../api/receipts";
 import { customersApi } from "../api/customers";
+import { tenantApi } from "../api/tenant";
 import { ApiError } from "../lib/apiClient";
 import { centsFromInput } from "../lib/format";
 import { PAYMENT_METHOD_LABELS, type Customer, type PaymentMethodType } from "../lib/types";
-import { Button, Card, Field, Input, PageHeader, Select, Textarea } from "../components/ui/ui";
+import {
+  Alert,
+  Button,
+  ButtonLink,
+  Card,
+  CardHeader,
+  Field,
+  Input,
+  PageHeader,
+  PrefixedInput,
+  SegmentedControl,
+  Select,
+  Textarea,
+} from "../components/ui/ui";
 import { useToast } from "../components/ToastContext";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
 
 const PAYMENT_METHODS = Object.entries(PAYMENT_METHOD_LABELS) as [PaymentMethodType, string][];
 
+// Field ids in on-screen order, used to move focus to the first invalid field.
+const FIELD_ORDER = ["customerId", "customerName", "customerContact", "amount", "paidAt", "reason"] as const;
+const FIELD_ELEMENT_IDS: Record<(typeof FIELD_ORDER)[number], string> = {
+  customerId: "customer_id",
+  customerName: "customer_name",
+  customerContact: "customer_email",
+  amount: "amount",
+  paidAt: "paid_at",
+  reason: "reason",
+};
+
 export function NewReceiptPage() {
+  useDocumentTitle("New receipt");
   const navigate = useNavigate();
   const { notify } = useToast();
 
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [customersFailed, setCustomersFailed] = useState(false);
+  const [currency, setCurrency] = useState<string | null>(null);
   const [customerMode, setCustomerMode] = useState<"existing" | "new">("new");
   const [customerId, setCustomerId] = useState("");
   const [customerName, setCustomerName] = useState("");
@@ -32,12 +61,19 @@ export function NewReceiptPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    customersApi.list().then(setCustomers).catch(() => undefined);
+    customersApi
+      .list()
+      .then(setCustomers)
+      .catch(() => setCustomersFailed(true));
+    tenantApi
+      .getMine()
+      .then((t) => setCurrency(t.default_currency))
+      .catch(() => undefined);
   }, []);
 
   function validate(): boolean {
     const next: Record<string, string> = {};
-    if (customerMode === "existing" && !customerId) next.customerId = "Choose a customer.";
+    if (customerMode === "existing" && !customerId) next.customerId = "Choose a payer.";
     if (customerMode === "new") {
       if (!customerName.trim()) next.customerName = "Payer name is required.";
       if (!customerEmail.trim() && !customerPhone.trim()) next.customerContact = "Provide an email or phone number.";
@@ -46,7 +82,10 @@ export function NewReceiptPage() {
     if (!reason.trim()) next.reason = "Describe the reason for payment.";
     if (!paidAt) next.paidAt = "Select the date paid.";
     setErrors(next);
-    return Object.keys(next).length === 0;
+
+    const firstInvalid = FIELD_ORDER.find((key) => next[key]);
+    if (firstInvalid) document.getElementById(FIELD_ELEMENT_IDS[firstInvalid])?.focus();
+    return !firstInvalid;
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -77,80 +116,112 @@ export function NewReceiptPage() {
 
   return (
     <div>
-      <PageHeader title="New receipt" subtitle="Record a payment already received locally and issue a formal receipt." />
+      <PageHeader
+        back={{ to: "/receipts", label: "Receipts" }}
+        title="New receipt"
+        subtitle="Record a payment already received locally and issue a formal receipt."
+      />
 
-      <form onSubmit={handleSubmit}>
-        <Card className="form-card">
-          <h2 className="section-title">Payer</h2>
-          <div className="segmented">
-            <button type="button" className={customerMode === "new" ? "segmented-active" : ""} onClick={() => setCustomerMode("new")}>
-              New payer
-            </button>
-            <button type="button" className={customerMode === "existing" ? "segmented-active" : ""} onClick={() => setCustomerMode("existing")}>
-              Existing payer
-            </button>
-          </div>
+      <form onSubmit={handleSubmit} noValidate>
+        <div className="stack">
+          <Card>
+            <CardHeader
+              title="Payer"
+              action={
+                <SegmentedControl
+                  label="Payer type"
+                  value={customerMode}
+                  onChange={setCustomerMode}
+                  options={[
+                    { value: "new", label: "New payer" },
+                    { value: "existing", label: "Existing payer" },
+                  ]}
+                />
+              }
+            />
 
-          {customerMode === "existing" ? (
-            <Field label="Select payer" htmlFor="customer_id" required error={errors.customerId}>
-              <Select id="customer_id" value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
-                <option value="">Choose a customer…</option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} {c.email ? `(${c.email})` : c.phone ? `(${c.phone})` : ""}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          ) : (
+            {customerMode === "existing" ? (
+              <div className="stack">
+                {customersFailed && (
+                  <Alert tone="warning">Your saved payers couldn't be loaded. Switch to "New payer" or reload the page.</Alert>
+                )}
+                <Field label="Payer" htmlFor="customer_id" required error={errors.customerId}>
+                  <Select id="customer_id" value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
+                    <option value="">Choose a payer…</option>
+                    {customers.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} {c.email ? `(${c.email})` : c.phone ? `(${c.phone})` : ""}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              </div>
+            ) : (
+              <div className="form-grid">
+                <Field label="Payer name" htmlFor="customer_name" required error={errors.customerName} className="form-grid-full">
+                  <Input id="customer_name" autoComplete="off" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
+                </Field>
+                <Field label="Email" htmlFor="customer_email" error={errors.customerContact} hint="Email or phone is required, so the receipt can be delivered.">
+                  <Input id="customer_email" type="email" value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} />
+                </Field>
+                <Field label="Phone" htmlFor="customer_phone" hint="International format, e.g. +256701234567">
+                  <Input id="customer_phone" type="tel" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} />
+                </Field>
+              </div>
+            )}
+          </Card>
+
+          <Card>
+            <CardHeader title="Payment" />
             <div className="form-grid">
-              <Field label="Payer name" htmlFor="customer_name" required error={errors.customerName}>
-                <Input id="customer_name" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
+              <Field label="Amount received" htmlFor="amount" required error={errors.amount}>
+                {currency ? (
+                  <PrefixedInput
+                    prefix={currency}
+                    id="amount"
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="0.01"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                  />
+                ) : (
+                  <Input id="amount" type="number" inputMode="decimal" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
+                )}
               </Field>
-              <Field label="Email" htmlFor="customer_email" error={errors.customerContact}>
-                <Input id="customer_email" type="email" value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} />
+              <Field label="Outstanding balance" htmlFor="balance" hint="Leave blank if fully settled; it prints as “Nil”.">
+                <Input id="balance" type="number" inputMode="decimal" min="0" step="0.01" value={balance} onChange={(e) => setBalance(e.target.value)} />
               </Field>
-              <Field label="Phone" htmlFor="customer_phone" hint="E.164 format, e.g. +256701234567">
-                <Input id="customer_phone" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} />
+              <Field label="Date paid" htmlFor="paid_at" required error={errors.paidAt}>
+                <Input id="paid_at" type="date" value={paidAt} onChange={(e) => setPaidAt(e.target.value)} />
+              </Field>
+              <Field label="Payment method" htmlFor="payment_method" required>
+                <Select id="payment_method" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentMethodType)}>
+                  {PAYMENT_METHODS.map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Reference number" htmlFor="payment_reference" hint="Bank slip number, mobile money transaction ID or cheque number." className="form-grid-full">
+                <Input id="payment_reference" value={paymentReference} onChange={(e) => setPaymentReference(e.target.value)} />
+              </Field>
+              <Field label="Reason for payment" htmlFor="reason" required error={errors.reason} hint="State it in full, e.g. “Rent for July 2026”." className="form-grid-full">
+                <Textarea id="reason" rows={3} value={reason} onChange={(e) => setReason(e.target.value)} />
               </Field>
             </div>
-          )}
-        </Card>
 
-        <Card className="form-card">
-          <h2 className="section-title">Payment</h2>
-          <div className="form-grid">
-            <Field label="Amount received" htmlFor="amount" required error={errors.amount} hint="In the tenant's default currency, e.g. 1500000">
-              <Input id="amount" type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
-            </Field>
-            <Field label="Outstanding balance" htmlFor="balance" hint="Leave blank if fully settled (renders as 'Nil').">
-              <Input id="balance" type="number" min="0" step="0.01" value={balance} onChange={(e) => setBalance(e.target.value)} />
-            </Field>
-            <Field label="Date paid" htmlFor="paid_at" required error={errors.paidAt}>
-              <Input id="paid_at" type="date" value={paidAt} onChange={(e) => setPaidAt(e.target.value)} />
-            </Field>
-            <Field label="Payment method" htmlFor="payment_method" required>
-              <Select id="payment_method" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentMethodType)}>
-                {PAYMENT_METHODS.map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Reference number" htmlFor="payment_reference" hint="Bank slip #, mobile money transaction ID, or cheque #.">
-              <Input id="payment_reference" value={paymentReference} onChange={(e) => setPaymentReference(e.target.value)} />
-            </Field>
-          </div>
-          <Field label="Reason for payment" htmlFor="reason" required error={errors.reason} hint="Stated in full, e.g. 'Rent for the month of July 2026'.">
-            <Textarea id="reason" rows={2} value={reason} onChange={(e) => setReason(e.target.value)} />
-          </Field>
-        </Card>
-
-        <div className="form-actions">
-          <Button type="submit" isLoading={isSubmitting}>
-            Issue receipt
-          </Button>
+            <div className="action-bar">
+              <ButtonLink to="/receipts" variant="ghost">
+                Cancel
+              </ButtonLink>
+              <Button type="submit" isLoading={isSubmitting}>
+                Issue receipt
+              </Button>
+            </div>
+          </Card>
         </div>
       </form>
     </div>

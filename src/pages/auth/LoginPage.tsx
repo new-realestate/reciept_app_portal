@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { authApi } from "../../api/auth";
 import { useAuth } from "../../auth/AuthContext";
 import { ApiError } from "../../lib/apiClient";
-import { Button, Field, Input } from "../../components/ui/ui";
+import { Alert, Button, Field, Input, PasswordInput } from "../../components/ui/ui";
 import { AuthLayout } from "./AuthLayout";
 
 export function LoginPage() {
@@ -37,30 +37,29 @@ export function LoginPage() {
       footer={
         <>
           <p>
-            New here? <Link to="/signup">Create a business account</Link>
+            <Link to="/forgot-password">Forgot your password?</Link>
           </p>
           <p>
-            <Link to="/forgot-password">Forgot your password?</Link>
+            New here? <Link to="/signup">Create a business account</Link>
           </p>
         </>
       }
     >
       <form onSubmit={handleSubmit} className="auth-form">
-        {error && <div className="alert alert--error">{error}</div>}
+        {error && <Alert tone="error">{error}</Alert>}
         <Field label="Email" htmlFor="email" required>
           <Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
         </Field>
         <Field label="Password" htmlFor="password" required>
-          <Input
+          <PasswordInput
             id="password"
-            type="password"
             autoComplete="current-password"
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
         </Field>
-        <Button type="submit" className="btn--full" isLoading={isLoading}>
+        <Button type="submit" full isLoading={isLoading}>
           Sign in
         </Button>
       </form>

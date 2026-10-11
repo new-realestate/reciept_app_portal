@@ -1,18 +1,21 @@
-import { Link } from "react-router-dom";
-import { EmptyState } from "../components/ui/ui";
+import { Compass } from "lucide-react";
+import { useAuth } from "../auth/AuthContext";
+import { ButtonLink, EmptyState } from "../components/ui/ui";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
 
 export function NotFoundPage() {
+  useDocumentTitle("Page not found");
+  const { session } = useAuth();
   return (
-    <div className="full-page-center">
+    <main className="full-page-center">
       <EmptyState
+        icon={Compass}
         title="Page not found"
-        description="The page you're looking for doesn't exist."
+        description="The page you are looking for does not exist or has moved."
         action={
-          <Link to="/receipts" className="btn btn--primary">
-            Go to receipts
-          </Link>
+          <ButtonLink to={session ? "/receipts" : "/login"}>{session ? "Go to receipts" : "Go to sign in"}</ButtonLink>
         }
       />
-    </div>
+    </main>
   );
 }

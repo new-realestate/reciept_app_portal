@@ -67,9 +67,13 @@ export interface Tenant {
   bank_name: string | null;
   bank_account_number: string | null;
   default_currency: string;
+  receipt_template: ReceiptTemplate;
 }
 
+export type ReceiptTemplate = "classic" | "modern";
+
 export interface TenantUpdatePayload {
+  receipt_template?: ReceiptTemplate;
   business_name?: string;
   po_box?: string;
   physical_address?: string;

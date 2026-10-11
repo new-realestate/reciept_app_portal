@@ -1,0 +1,139 @@
+/* Design tokens. Dark values are declared twice (system preference + manual
+   [data-theme="dark"]) because CSS has no way to share a block between them. */
+:root {
+  color-scheme: light;
+
+  /* Neutral scale */
+  --bg: #f6f7fb;
+  --surface: #ffffff;
+  --surface-alt: #f1f3f9;
+  --surface-hover: #eceff7;
+  --border: #e2e5ef;
+  --border-strong: #cdd2e3;
+  --text: #151827;
+  --text-muted: #5b617a;
+  --text-faint: #6f7590;
+
+  /* Brand (indigo) */
+  --brand: #3b3fd1;
+  --brand-hover: #2f32ab;
+  --brand-soft: #ecebff;
+  --brand-contrast: #ffffff;
+  --focus-ring: #3b3fd1;
+
+  /* Status */
+  --success: #0b7a43;
+  --success-soft: #e3f6ec;
+  --warning: #98600f;
+  --warning-soft: #fdf1da;
+  --danger: #b42318;
+  --danger-soft: #fdeceb;
+  --info: #1d4ed8;
+  --info-soft: #e6eefe;
+
+  --overlay: rgba(15, 18, 38, 0.5);
+
+  /* Spacing (4px base) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+
+  /* Type */
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.9375rem;
+  --text-lg: 1.0625rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.75rem;
+
+  /* Shape */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-full: 999px;
+  --shadow-sm: 0 1px 2px rgba(21, 24, 39, 0.05);
+  --shadow-md: 0 8px 24px rgba(21, 24, 39, 0.1);
+
+  /* Motion */
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --duration-fast: 120ms;
+  --duration: 180ms;
+
+  /* Layout */
+  --sidebar-width: 256px;
+  --topbar-height: 56px;
+  --content-max: 1120px;
+
+  --z-sidebar: 40;
+  --z-topbar: 30;
+  --z-menu: 60;
+  --z-modal: 80;
+  --z-toast: 100;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0e1020;
+  --surface: #161933;
+  --surface-alt: #1c2040;
+  --surface-hover: #232850;
+  --border: #2a2f57;
+  --border-strong: #3a4072;
+  --text: #eceefb;
+  --text-muted: #a7acc8;
+  --text-faint: #9297b8;
+  --brand: #8b8eff;
+  --brand-hover: #a3a6ff;
+  --brand-soft: #25295a;
+  --brand-contrast: #0e1020;
+  --focus-ring: #a3a6ff;
+  --success: #4cd08a;
+  --success-soft: #11332a;
+  --warning: #f0b45a;
+  --warning-soft: #3a2c12;
+  --danger: #ff8a7d;
+  --danger-soft: #3f1c1c;
+  --info: #8fb4ff;
+  --info-soft: #1a2750;
+  --overlay: rgba(4, 5, 14, 0.65);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0e1020;
+    --surface: #161933;
+    --surface-alt: #1c2040;
+    --surface-hover: #232850;
+    --border: #2a2f57;
+    --border-strong: #3a4072;
+    --text: #eceefb;
+    --text-muted: #a7acc8;
+    --text-faint: #9297b8;
+    --brand: #8b8eff;
+    --brand-hover: #a3a6ff;
+    --brand-soft: #25295a;
+    --brand-contrast: #0e1020;
+    --focus-ring: #a3a6ff;
+    --success: #4cd08a;
+    --success-soft: #11332a;
+    --warning: #f0b45a;
+    --warning-soft: #3a2c12;
+    --danger: #ff8a7d;
+    --danger-soft: #3f1c1c;
+    --info: #8fb4ff;
+    --info-soft: #1a2750;
+    --overlay: rgba(4, 5, 14, 0.65);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45);
+  }
+}

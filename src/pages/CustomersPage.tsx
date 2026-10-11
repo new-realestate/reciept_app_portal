@@ -1,143 +1,180 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { Plus, Search, SearchX, Users } from "lucide-react";
 import { customersApi } from "../api/customers";
 import { ApiError } from "../lib/apiClient";
 import type { Customer } from "../lib/types";
-import { Button, Card, EmptyState, Field, Input, Modal, PageHeader, Spinner } from "../components/ui/ui";
+import { Alert, Button, Card, EmptyState, Field, Input, PageHeader } from "../components/ui/ui";
+import { DataTable, type Column } from "../components/ui/DataTable";
+import { Modal } from "../components/ui/Modal";
 import { useToast } from "../components/ToastContext";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
+
+const SEARCH_DEBOUNCE_MS = 300;
+
+const COLUMNS: Column<Customer>[] = [
+  { key: "name", header: "Name", sortValue: (c) => c.name.toLowerCase(), cell: (c) => <strong>{c.name}</strong> },
+  { key: "email", header: "Email", sortValue: (c) => c.email ?? "", cell: (c) => c.email ?? "—" },
+  { key: "phone", header: "Phone", cell: (c) => c.phone ?? "—" },
+];
 
 export function CustomersPage() {
+  useDocumentTitle("Customers");
   const { notify } = useToast();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [query, setQuery] = useState("");
+  const [activeQuery, setActiveQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const requestId = useRef(0);
 
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
-
-  async function load(q?: string) {
+  const load = useCallback(async (q: string) => {
+    const id = ++requestId.current;
     setIsLoading(true);
+    setError(null);
     try {
-      const data = await customersApi.list(q);
-      setCustomers(data);
+      const data = await customersApi.list(q || undefined);
+      if (id === requestId.current) setCustomers(data);
     } catch (err) {
-      notify(err instanceof ApiError ? err.message : "Could not load customers.", "error");
+      if (id === requestId.current) setError(err instanceof ApiError ? err.message : "Could not load customers.");
     } finally {
-      setIsLoading(false);
+      if (id === requestId.current) setIsLoading(false);
     }
-  }
-
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function handleSearch(e: FormEvent) {
-    e.preventDefault();
-    load(query || undefined);
-  }
+  useEffect(() => {
+    load(activeQuery);
+  }, [activeQuery, load]);
 
-  async function handleCreate(e: FormEvent) {
-    e.preventDefault();
-    setFormError(null);
-    if (!name.trim()) {
-      setFormError("Name is required.");
-      return;
-    }
-    if (!email.trim() && !phone.trim()) {
-      setFormError("Provide an email or phone number.");
-      return;
-    }
-    setIsSubmitting(true);
-    try {
-      await customersApi.create({ name, email: email || undefined, phone: phone || undefined });
-      notify("Customer added.", "success");
-      setShowModal(false);
-      setName("");
-      setEmail("");
-      setPhone("");
-      load(query || undefined);
-    } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : "Could not add customer.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
+  useEffect(() => {
+    const timer = window.setTimeout(() => setActiveQuery(query.trim()), SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [query]);
 
   return (
     <div>
       <PageHeader
         title="Customers"
-        subtitle="Payers you've issued receipts to."
+        subtitle="The payers you've issued receipts to."
         actions={
-          <Button onClick={() => setShowModal(true)} variant="primary">
-            + Add customer
+          <Button icon={Plus} onClick={() => setShowModal(true)}>
+            Add customer
           </Button>
         }
       />
 
-      <Card className="filters-card">
-        <form className="filters-row" onSubmit={handleSearch}>
-          <Field label="Search" htmlFor="q">
-            <Input id="q" placeholder="Name, email, or phone…" value={query} onChange={(e) => setQuery(e.target.value)} />
+      <Card flush>
+        <div className="filter-bar" role="search" aria-label="Search customers">
+          <Field label="Search" htmlFor="q" className="field--grow">
+            <div className="search-input">
+              <Search size={16} aria-hidden />
+              <Input
+                id="q"
+                type="search"
+                placeholder="Name, email or phone"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </div>
           </Field>
-          <Button type="submit" variant="secondary">
-            Search
-          </Button>
-        </form>
-      </Card>
+        </div>
 
-      <Card>
-        {isLoading ? (
-          <Spinner label="Loading customers…" />
-        ) : customers.length === 0 ? (
-          <EmptyState title="No customers yet" description="Customers are created automatically the first time you issue them a receipt, or you can add one here." />
-        ) : (
-          <div className="table-scroll">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Phone</th>
-                </tr>
-              </thead>
-              <tbody>
-                {customers.map((c) => (
-                  <tr key={c.id}>
-                    <td>{c.name}</td>
-                    <td>{c.email ?? "—"}</td>
-                    <td>{c.phone ?? "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <DataTable
+          caption="Customers"
+          columns={COLUMNS}
+          rows={customers}
+          rowKey={(c) => c.id}
+          isLoading={isLoading}
+          error={error}
+          onRetry={() => load(activeQuery)}
+          itemLabel="customers"
+          empty={
+            activeQuery ? (
+              <EmptyState
+                icon={SearchX}
+                title="No customers match your search"
+                description="Check the spelling, or try part of an email or phone number."
+                action={
+                  <Button variant="secondary" onClick={() => setQuery("")}>
+                    Clear search
+                  </Button>
+                }
+              />
+            ) : (
+              <EmptyState
+                icon={Users}
+                title="No customers yet"
+                description="Customers are added automatically when you issue them a receipt, or use Add customer above."
+              />
+            )
+          }
+        />
       </Card>
 
       {showModal && (
-        <Modal title="Add customer" onClose={() => setShowModal(false)}>
-          <form onSubmit={handleCreate} className="auth-form">
-            {formError && <div className="alert alert--error">{formError}</div>}
-            <Field label="Name" htmlFor="modal_name" required>
-              <Input id="modal_name" value={name} onChange={(e) => setName(e.target.value)} />
-            </Field>
-            <Field label="Email" htmlFor="modal_email">
-              <Input id="modal_email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-            </Field>
-            <Field label="Phone" htmlFor="modal_phone" hint="E.164 format, e.g. +256701234567">
-              <Input id="modal_phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
-            </Field>
-            <Button type="submit" className="btn--full" isLoading={isSubmitting}>
-              Add customer
-            </Button>
-          </form>
-        </Modal>
+        <AddCustomerModal
+          onClose={() => setShowModal(false)}
+          onCreated={() => {
+            setShowModal(false);
+            notify("Customer added.", "success");
+            load(activeQuery);
+          }}
+        />
       )}
     </div>
+  );
+}
+
+function AddCustomerModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [errors, setErrors] = useState<{ name?: string; contact?: string }>({});
+  const [formError, setFormError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setFormError(null);
+    const next: typeof errors = {};
+    if (!name.trim()) next.name = "Name is required.";
+    if (!email.trim() && !phone.trim()) next.contact = "Provide an email or phone number.";
+    setErrors(next);
+    if (next.name) return document.getElementById("modal_name")?.focus();
+    if (next.contact) return document.getElementById("modal_email")?.focus();
+
+    setIsSubmitting(true);
+    try {
+      await customersApi.create({ name, email: email || undefined, phone: phone || undefined });
+      onCreated();
+    } catch (err) {
+      setFormError(err instanceof ApiError ? err.message : "Could not add the customer.");
+      setIsSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal title="Add customer" onClose={onClose}>
+      <form onSubmit={handleSubmit} noValidate className="stack">
+        {formError && <Alert tone="error">{formError}</Alert>}
+        <Field label="Name" htmlFor="modal_name" required error={errors.name}>
+          <Input id="modal_name" autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} />
+        </Field>
+        <Field label="Email" htmlFor="modal_email" error={errors.contact} hint="Email or phone is required.">
+          <Input id="modal_email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+        </Field>
+        <Field label="Phone" htmlFor="modal_phone" hint="International format, e.g. +256701234567">
+          <Input id="modal_phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
+        </Field>
+        <div className="modal-footer">
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" isLoading={isSubmitting}>
+            Add customer
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 }

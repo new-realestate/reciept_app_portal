@@ -1,48 +1,56 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { ChevronDown, Copy, Download, ExternalLink, FileQuestion, Mail, MessageSquare, MoreHorizontal, Send } from "lucide-react";
+import { useParams } from "react-router-dom";
 import { receiptsApi } from "../api/receipts";
 import { ApiError } from "../lib/apiClient";
 import { formatDateTime, formatMoney } from "../lib/format";
 import { PAYMENT_METHOD_LABELS, type DeliveryChannel, type ReceiptDetail } from "../lib/types";
-import { Badge, Button, Card, PageHeader, Spinner } from "../components/ui/ui";
+import {
+  ButtonAnchor,
+  Card,
+  CardHeader,
+  EmptyState,
+  ErrorState,
+  PageHeader,
+  Skeleton,
+  Spinner,
+} from "../components/ui/ui";
+import { DropdownMenu } from "../components/ui/DropdownMenu";
+import { DeliveryStatusBadge, ReceiptStatusBadge } from "../components/ui/StatusBadge";
 import { useToast } from "../components/ToastContext";
-
-const DELIVERY_TONE: Record<string, "success" | "warning" | "danger" | "neutral"> = {
-  delivered: "success",
-  sent: "success",
-  opened: "success",
-  queued: "neutral",
-  bounced: "danger",
-  failed: "danger",
-};
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
 
 export function ReceiptDetailPage() {
   const { receiptId } = useParams<{ receiptId: string }>();
   const { notify } = useToast();
   const [receipt, setReceipt] = useState<ReceiptDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [sendingChannel, setSendingChannel] = useState<DeliveryChannel | "both" | null>(null);
+  const [error, setError] = useState<{ message: string; notFound: boolean } | null>(null);
+  const [isSending, setIsSending] = useState(false);
+
+  useDocumentTitle(receipt ? `Receipt ${receipt.reference_number}` : "Receipt");
 
   const load = useCallback(async () => {
     if (!receiptId) return;
     setIsLoading(true);
+    setError(null);
     try {
-      const data = await receiptsApi.get(receiptId);
-      setReceipt(data);
+      setReceipt(await receiptsApi.get(receiptId));
     } catch (err) {
-      notify(err instanceof ApiError ? err.message : "Could not load the receipt.", "error");
+      const notFound = err instanceof ApiError && err.status === 404;
+      setError({ message: err instanceof ApiError ? err.message : "Could not load the receipt.", notFound });
     } finally {
       setIsLoading(false);
     }
-  }, [receiptId, notify]);
+  }, [receiptId]);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  async function handleSend(channels: DeliveryChannel[], key: DeliveryChannel | "both", isResend: boolean) {
+  async function handleSend(channels: DeliveryChannel[], isResend: boolean) {
     if (!receiptId) return;
-    setSendingChannel(key);
+    setIsSending(true);
     try {
       const action = isResend ? receiptsApi.resend : receiptsApi.send;
       await action(receiptId, { channels, email_mode: "attachment" });
@@ -51,11 +59,20 @@ export function ReceiptDetailPage() {
     } catch (err) {
       notify(err instanceof ApiError ? err.message : "Delivery failed.", "error");
     } finally {
-      setSendingChannel(null);
+      setIsSending(false);
     }
   }
 
-  if (isLoading) {
+  async function copyLink(url: string) {
+    try {
+      await navigator.clipboard.writeText(url);
+      notify("Receipt link copied.", "success");
+    } catch {
+      notify("Could not copy the link. Open the hosted receipt and copy it from the address bar.", "error");
+    }
+  }
+
+  if (isLoading && !receipt) {
     return (
       <div className="full-page-center">
         <Spinner label="Loading receipt…" />
@@ -63,59 +80,85 @@ export function ReceiptDetailPage() {
     );
   }
 
-  if (!receipt) {
+  if (error || !receipt) {
     return (
-      <Card>
-        <p>Receipt not found.</p>
-        <Link to="/receipts">Back to receipts</Link>
-      </Card>
+      <>
+        <PageHeader title="Receipt" back={{ to: "/receipts", label: "Receipts" }} />
+        <Card>
+          {error?.notFound ? (
+            <EmptyState
+              icon={FileQuestion}
+              title="Receipt not found"
+              description="It may have been removed, or the link is incorrect."
+            />
+          ) : (
+            <ErrorState message={error?.message ?? "Could not load the receipt."} onRetry={load} />
+          )}
+        </Card>
+      </>
     );
   }
 
   const hasBeenSent = receipt.delivery_attempts.length > 0;
   const hostedUrl = receiptsApi.hostedViewUrl(receipt.hosted_view_token);
+  const verb = hasBeenSent ? "Resend" : "Send";
 
   return (
     <div>
       <PageHeader
+        back={{ to: "/receipts", label: "Receipts" }}
         title={`Receipt ${receipt.reference_number}`}
         subtitle={`Issued by ${receipt.issuer_printed_name} on ${formatDateTime(receipt.created_at)}`}
         actions={
-          <div className="row-actions">
-            <a className="btn btn--secondary" href={hostedUrl} target="_blank" rel="noreferrer">
-              View hosted receipt
-            </a>
+          <>
+            <DropdownMenu
+              label="Delivery options"
+              triggerClassName="btn btn--primary"
+              disabled={isSending}
+              items={[
+                { label: `${verb} by email`, icon: Mail, onSelect: () => handleSend(["email"], hasBeenSent) },
+                { label: `${verb} by SMS`, icon: MessageSquare, onSelect: () => handleSend(["sms"], hasBeenSent) },
+                {
+                  label: `${verb} by email and SMS`,
+                  icon: Send,
+                  onSelect: () => handleSend(["email", "sms"], hasBeenSent),
+                },
+              ]}
+            >
+              {isSending ? <span className="btn-spinner" aria-hidden /> : <Send size={16} aria-hidden />}
+              {isSending ? "Sending…" : `${verb} receipt`}
+              <ChevronDown size={16} aria-hidden />
+            </DropdownMenu>
+
             {receipt.pdf_url && (
-              <a className="btn btn--secondary" href={receipt.pdf_url} target="_blank" rel="noreferrer">
+              <ButtonAnchor href={receipt.pdf_url} target="_blank" rel="noreferrer" icon={Download}>
                 Download PDF
-              </a>
+              </ButtonAnchor>
             )}
-          </div>
+
+            <DropdownMenu
+              label="More actions"
+              triggerClassName="icon-btn"
+              items={[
+                { label: "Open hosted receipt", icon: ExternalLink, href: hostedUrl },
+                { label: "Copy receipt link", icon: Copy, onSelect: () => copyLink(hostedUrl) },
+              ]}
+            >
+              <MoreHorizontal size={18} aria-hidden />
+              <span className="sr-only">More actions</span>
+            </DropdownMenu>
+          </>
         }
       />
 
-      <div className="detail-grid">
+      <div className="page-grid page-grid--wide-left">
         <Card>
-          <h2 className="section-title">Summary</h2>
+          <CardHeader title="Payment" action={<ReceiptStatusBadge status={receipt.status} />} />
+          <p className="amount-hero">{formatMoney(receipt.amount_cents, receipt.currency)}</p>
+          <p className="muted-text" style={{ marginBottom: "var(--space-6)" }}>
+            {receipt.amount_in_words}
+          </p>
           <dl className="definition-list">
-            <div>
-              <dt>Status</dt>
-              <dd>
-                <Badge tone={receipt.status === "issued" ? "success" : "warning"}>{receipt.status}</Badge>
-              </dd>
-            </div>
-            <div>
-              <dt>Amount</dt>
-              <dd>{formatMoney(receipt.amount_cents, receipt.currency)}</dd>
-            </div>
-            <div>
-              <dt>In words</dt>
-              <dd>{receipt.amount_in_words}</dd>
-            </div>
-            <div>
-              <dt>Balance</dt>
-              <dd>{receipt.balance_cents === 0 ? "Nil" : formatMoney(receipt.balance_cents, receipt.currency)}</dd>
-            </div>
             <div>
               <dt>Reason</dt>
               <dd>{receipt.reason}</dd>
@@ -127,43 +170,46 @@ export function ReceiptDetailPage() {
                 {receipt.payment_reference ? ` · Ref: ${receipt.payment_reference}` : ""}
               </dd>
             </div>
+            <div>
+              <dt>Balance</dt>
+              <dd>{receipt.balance_cents === 0 ? "Nil" : formatMoney(receipt.balance_cents, receipt.currency)}</dd>
+            </div>
           </dl>
         </Card>
 
         <Card>
-          <h2 className="section-title">Send / resend</h2>
-          <p className="muted-text">Deliver this receipt to the payer by email, SMS, or both.</p>
-          <div className="row-actions">
-            <Button variant="secondary" isLoading={sendingChannel === "email"} onClick={() => handleSend(["email"], "email", hasBeenSent)}>
-              {hasBeenSent ? "Resend" : "Send"} email
-            </Button>
-            <Button variant="secondary" isLoading={sendingChannel === "sms"} onClick={() => handleSend(["sms"], "sms", hasBeenSent)}>
-              {hasBeenSent ? "Resend" : "Send"} SMS
-            </Button>
-            <Button isLoading={sendingChannel === "both"} onClick={() => handleSend(["email", "sms"], "both", hasBeenSent)}>
-              {hasBeenSent ? "Resend" : "Send"} both
-            </Button>
-          </div>
-
-          <h3 className="subsection-title">Delivery history</h3>
-          {receipt.delivery_attempts.length === 0 ? (
-            <p className="muted-text">No delivery attempts yet.</p>
-          ) : (
-            <ul className="delivery-list">
+          <CardHeader
+            title="Delivery history"
+            description={hasBeenSent ? undefined : "This receipt hasn't been sent to the payer yet."}
+          />
+          {isLoading ? (
+            <div className="stack">
+              <Skeleton width="70%" />
+              <Skeleton width="45%" />
+            </div>
+          ) : hasBeenSent ? (
+            <ol className="timeline">
               {receipt.delivery_attempts.map((a) => (
                 <li key={a.id}>
-                  <div className="delivery-row">
-                    <span className="delivery-channel">{a.channel === "email" ? "✉️" : "📱"} {a.recipient}</span>
-                    <Badge tone={DELIVERY_TONE[a.status] ?? "neutral"}>{a.status}</Badge>
+                  <div className="timeline-row">
+                    <span className="timeline-title">
+                      {a.channel === "email" ? (
+                        <Mail size={16} aria-label="Email" />
+                      ) : (
+                        <MessageSquare size={16} aria-label="SMS" />
+                      )}
+                      {a.recipient}
+                    </span>
+                    <DeliveryStatusBadge status={a.status} />
                   </div>
-                  <div className="delivery-meta">
-                    Attempt #{a.attempt_number} · {formatDateTime(a.attempted_at)}
+                  <div className="timeline-meta">
+                    Attempt {a.attempt_number} · {formatDateTime(a.attempted_at)}
                     {a.provider ? ` · via ${a.provider}` : ""}
                   </div>
                 </li>
               ))}
-            </ul>
-          )}
+            </ol>
+          ) : null}
         </Card>
       </div>
     </div>

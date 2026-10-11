@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { authApi } from "../../api/auth";
 import { ApiError } from "../../lib/apiClient";
-import { Spinner } from "../../components/ui/ui";
+import { Alert, ButtonLink, Spinner } from "../../components/ui/ui";
 import { AuthLayout } from "./AuthLayout";
 
 export function VerifyEmailPage() {
@@ -27,10 +27,24 @@ export function VerifyEmailPage() {
   }, [token]);
 
   return (
-    <AuthLayout title="Email verification" footer={<Link to="/login">Back to sign in</Link>}>
+    <AuthLayout
+      title="Email verification"
+      footer={state === "success" ? undefined : <Link to="/login">Back to sign in</Link>}
+    >
       {state === "loading" && <Spinner label="Verifying your email…" />}
-      {state === "success" && <div className="alert alert--success">Your email is verified. You can now sign in.</div>}
-      {state === "error" && <div className="alert alert--error">{message}</div>}
+      {state === "success" && (
+        <div className="auth-form">
+          <Alert tone="success">Your email is verified. You can now sign in.</Alert>
+          <ButtonLink to="/login" full>
+            Go to sign in
+          </ButtonLink>
+        </div>
+      )}
+      {state === "error" && (
+        <div className="auth-form">
+          <Alert tone="error">{message}</Alert>
+        </div>
+      )}
     </AuthLayout>
   );
 }

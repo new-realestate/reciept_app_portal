@@ -1,4 +1,4 @@
-import { apiRequest } from "../lib/apiClient";
+import { API_BASE_URL, apiRequest } from "../lib/apiClient";
 import type {
   DeliveryAttempt,
   Receipt,
@@ -30,5 +30,5 @@ export const receiptsApi = {
   resend: (id: string, payload: SendReceiptPayload) =>
     apiRequest<DeliveryAttempt[]>(`/receipts/${id}/resend`, { method: "POST", body: payload }),
 
-  hostedViewUrl: (token: string) => `${import.meta.env.VITE_API_BASE_URL}/r/${token}`,
+  hostedViewUrl: (token: string) => `${API_BASE_URL}/r/${token}`,
 };

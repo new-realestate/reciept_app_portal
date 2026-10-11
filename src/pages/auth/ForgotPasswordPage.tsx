@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { authApi } from "../../api/auth";
 import { ApiError } from "../../lib/apiClient";
-import { Button, Field, Input } from "../../components/ui/ui";
+import { Alert, Button, Field, Input } from "../../components/ui/ui";
 import { AuthLayout } from "./AuthLayout";
 
 export function ForgotPasswordPage() {
@@ -28,7 +28,7 @@ export function ForgotPasswordPage() {
   return (
     <AuthLayout
       title="Reset your password"
-      subtitle="We'll email you a link to choose a new password."
+      subtitle="We will email you a link to choose a new password."
       footer={
         <p>
           <Link to="/login">Back to sign in</Link>
@@ -36,14 +36,16 @@ export function ForgotPasswordPage() {
       }
     >
       {done ? (
-        <div className="alert alert--success">If that email is registered, a reset link has been sent.</div>
+        <div className="auth-form">
+          <Alert tone="success">If that email is registered, a reset link has been sent.</Alert>
+        </div>
       ) : (
         <form onSubmit={handleSubmit} className="auth-form">
-          {error && <div className="alert alert--error">{error}</div>}
+          {error && <Alert tone="error">{error}</Alert>}
           <Field label="Email" htmlFor="email" required>
-            <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+            <Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
           </Field>
-          <Button type="submit" className="btn--full" isLoading={isLoading}>
+          <Button type="submit" full isLoading={isLoading}>
             Send reset link
           </Button>
         </form>
