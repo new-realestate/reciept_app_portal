@@ -6,6 +6,8 @@ export const tenantApi = {
 
   update: (payload: TenantUpdatePayload) => apiRequest<Tenant>("/tenant/me", { method: "PATCH", body: payload }),
 
+  setTimezone: (timezone: string) => apiRequest<Tenant>("/tenant/me", { method: "PATCH", body: { timezone } }),
+
   uploadLogo: (file: File) => {
     const form = new FormData();
     form.append("file", file);

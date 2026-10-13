@@ -68,6 +68,7 @@ export interface Tenant {
   bank_account_number: string | null;
   default_currency: string;
   receipt_template: ReceiptTemplate;
+  timezone?: string;
 }
 
 export type ReceiptTemplate = "classic" | "modern";
@@ -163,4 +164,5 @@ export interface ReceiptListFilters {
 
 export interface ApiErrorBody {
   detail?: string | { msg: string; loc: (string | number)[] }[];
+  error?: { message?: string; status_code?: number };
 }

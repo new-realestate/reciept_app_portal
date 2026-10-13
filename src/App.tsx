@@ -15,10 +15,19 @@ import { CustomersPage } from "./pages/CustomersPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { AdminPortalPage } from "./pages/AdminPortalPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
+import { DashboardPage } from "./pages/DashboardPage";
+import { InvoicesPage } from "./pages/InvoicesPage";
+import { InvoiceDetailPage } from "./pages/InvoiceDetailPage";
+import { QuotationsPage } from "./pages/QuotationsPage";
+import { QuotationDetailPage } from "./pages/QuotationDetailPage";
+import { EditInvoicePage, EditQuotationPage, NewInvoicePage, NewQuotationPage } from "./pages/DocumentFormPages";
+import { NewSchedulePage, ScheduleDetailPage, SchedulesPage } from "./pages/SchedulePages";
+import { RemindersPage } from "./pages/RemindersPage";
+import { AuditLogPage } from "./pages/AuditLogPage";
 
 function RootRedirect() {
   const { session } = useAuth();
-  return <Navigate to={session ? "/receipts" : "/login"} replace />;
+  return <Navigate to={session ? "/dashboard" : "/login"} replace />;
 }
 
 function AppRoutes() {
@@ -33,10 +42,24 @@ function AppRoutes() {
 
       <Route element={<ProtectedRoute />}>
         <Route element={<AppShell />}>
+          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/invoices" element={<InvoicesPage />} />
+          <Route path="/invoices/new" element={<NewInvoicePage />} />
+          <Route path="/invoices/:invoiceId" element={<InvoiceDetailPage />} />
+          <Route path="/invoices/:invoiceId/edit" element={<EditInvoicePage />} />
+          <Route path="/quotations" element={<QuotationsPage />} />
+          <Route path="/quotations/new" element={<NewQuotationPage />} />
+          <Route path="/quotations/:quotationId" element={<QuotationDetailPage />} />
+          <Route path="/quotations/:quotationId/edit" element={<EditQuotationPage />} />
+          <Route path="/schedules" element={<SchedulesPage />} />
+          <Route path="/schedules/new" element={<NewSchedulePage />} />
+          <Route path="/schedules/:scheduleId" element={<ScheduleDetailPage />} />
+          <Route path="/reminders" element={<RemindersPage />} />
           <Route path="/receipts" element={<ReceiptsPage />} />
           <Route path="/receipts/new" element={<NewReceiptPage />} />
           <Route path="/receipts/:receiptId" element={<ReceiptDetailPage />} />
           <Route path="/customers" element={<CustomersPage />} />
+          <Route path="/audit-log" element={<AuditLogPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/admin" element={<AdminPortalPage />} />
         </Route>

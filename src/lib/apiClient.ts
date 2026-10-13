@@ -39,11 +39,14 @@ export function onUnauthorized(listener: UnauthorizedListener) {
 }
 
 interface RequestOptions {
-  method?: "GET" | "POST" | "PATCH" | "DELETE";
+  method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
   body?: unknown;
   auth?: boolean;
   isForm?: boolean;
   query?: Record<string, string | number | undefined | null>;
+  headers?: Record<string, string>;
+  /** Called with the raw response before the body is parsed (e.g. to read X-Total-Count). */
+  onResponse?: (response: Response) => void;
 }
 
 function buildQuery(query?: RequestOptions["query"]): string {
@@ -59,6 +62,8 @@ function buildQuery(query?: RequestOptions["query"]): string {
 }
 
 function extractMessage(body: ApiErrorBody | undefined, fallback: string): string {
+  // The API wraps HTTP errors as { error: { message } }; request-validation errors keep FastAPI's { detail }.
+  if (body?.error?.message) return body.error.message;
   if (!body?.detail) return fallback;
   if (typeof body.detail === "string") return body.detail;
   if (Array.isArray(body.detail) && body.detail.length > 0) {
@@ -68,9 +73,9 @@ function extractMessage(body: ApiErrorBody | undefined, fallback: string): strin
 }
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method = "GET", body, auth = true, isForm = false, query } = options;
+  const { method = "GET", body, auth = true, isForm = false, query, headers: extraHeaders, onResponse } = options;
 
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { ...extraHeaders };
   if (!isForm) headers["Content-Type"] = "application/json";
 
   if (auth) {
@@ -88,6 +93,8 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   } catch {
     throw new ApiError("Could not reach the server. Check your connection and try again.", 0);
   }
+
+  onResponse?.(response);
 
   if (response.status === 204) {
     return undefined as T;
@@ -116,4 +123,27 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   }
 
   return json as T;
+}
+
+/** Downloads a protected file (e.g. an invoice PDF) using the session token and saves it. */
+export async function downloadAuthedFile(path: string, filename: string): Promise<void> {
+  const token = getStoredToken();
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  } catch {
+    throw new ApiError("Could not reach the server. Check your connection and try again.", 0);
+  }
+  if (!response.ok) {
+    if (response.status === 401) unauthorizedListener?.();
+    throw new ApiError(`Could not download the file (${response.status}).`, response.status);
+  }
+  const url = URL.createObjectURL(await response.blob());
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }

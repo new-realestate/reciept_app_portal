@@ -19,6 +19,26 @@ export function formatDate(value: string): string {
   return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }
 
+/** Formats a date-only value ("2026-10-23") without shifting it across a timezone boundary. */
+export function formatDay(value: string): string {
+  const [y, m, d] = value.split("-").map(Number);
+  if (!y || !m || !d) return value;
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+
+/** Today as YYYY-MM-DD in the browser's local timezone (for date inputs). */
+export function todayISO(offsetDays = 0): string {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/** Cents back to a plain decimal string for editing, e.g. 150050 -> "1500.50". */
+export function inputFromCents(cents: number): string {
+  return (cents / 100).toFixed(2);
+}
+
 export function formatDateTime(value: string): string {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return value;

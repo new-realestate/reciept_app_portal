@@ -15,6 +15,9 @@ export const permissions = {
   canCreateReceipt: (_role: UserRole) => true,
   canSendReceipt: (_role: UserRole) => true,
   canViewAdminPortal: (role: UserRole) => role === "owner" || role === "admin",
+  // Invoices, quotations and schedules: everyone can create, send and record payments;
+  // cancelling, link revocation and business-wide reminder settings are Owner/Admin only.
+  canManageDocuments: (role: UserRole) => role === "owner" || role === "admin",
 };
 
 export const ROLE_LABELS: Record<UserRole, string> = {

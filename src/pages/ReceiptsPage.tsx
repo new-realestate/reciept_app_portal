@@ -12,10 +12,18 @@ import { ReceiptStatusBadge } from "../components/ui/StatusBadge";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 
 const SEARCH_DEBOUNCE_MS = 300;
+const PAGE_SIZE = 15;
 
 export function ReceiptsPage() {
   useDocumentTitle("Receipts");
   const [receipts, setReceipts] = useState<Receipt[]>([]);
+  const [total, setTotal] = useState(0);
+  const [offset, setOffset] = useState(0);
+  const [limit, setLimit] = useState(PAGE_SIZE);
+  const changeLimit = (n: number) => {
+    setOffset(0);
+    setLimit(n);
+  };
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<ReceiptListFilters>({});
@@ -24,41 +32,48 @@ export function ReceiptsPage() {
 
   const hasFilters = Object.values(filters).some((v) => v !== undefined && v !== "");
 
-  const load = useCallback(async (activeFilters: ReceiptListFilters) => {
+  const load = useCallback(async (activeFilters: ReceiptListFilters, from: number) => {
     const id = ++requestId.current;
     setIsLoading(true);
     setError(null);
     try {
-      const data = await receiptsApi.list(activeFilters);
-      if (id === requestId.current) setReceipts(data);
+      const page = await receiptsApi.listPage(activeFilters, limit, from);
+      if (id === requestId.current) {
+        setReceipts(page.items);
+        setTotal(page.total);
+      }
     } catch (err) {
       if (id === requestId.current) setError(err instanceof ApiError ? err.message : "Could not load receipts.");
     } finally {
       if (id === requestId.current) setIsLoading(false);
     }
-  }, []);
+  }, [limit]);
 
   useEffect(() => {
-    load(filters);
-  }, [filters, load]);
+    load(filters, offset);
+  }, [filters, offset, load]);
 
   // Search by payer as the user types, without firing a request per keystroke.
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setFilters((prev) => {
         const next = payerInput.trim() || undefined;
-        return prev.payer_name === next ? prev : { ...prev, payer_name: next };
+        if (prev.payer_name === next) return prev;
+        setOffset(0);
+        return { ...prev, payer_name: next };
       });
     }, SEARCH_DEBOUNCE_MS);
     return () => window.clearTimeout(timer);
   }, [payerInput]);
 
   function updateFilter<K extends keyof ReceiptListFilters>(key: K, value: ReceiptListFilters[K]) {
+    setOffset(0);
     setFilters((prev) => ({ ...prev, [key]: value }));
   }
 
   function clearFilters() {
     setPayerInput("");
+    setOffset(0);
     setFilters({});
   }
 
@@ -66,19 +81,17 @@ export function ReceiptsPage() {
     {
       key: "reference_number",
       header: "Receipt #",
-      sortValue: (r) => r.reference_number,
       cell: (r) => (
         <Link to={`/receipts/${r.id}`} className="table-link">
           {r.reference_number}
         </Link>
       ),
     },
-    { key: "paid_at", header: "Date paid", sortValue: (r) => r.paid_at, cell: (r) => formatDate(r.paid_at) },
+    { key: "paid_at", header: "Date paid", cell: (r) => formatDate(r.paid_at) },
     {
       key: "amount",
       header: "Amount",
       align: "end",
-      sortValue: (r) => r.amount_cents,
       cell: (r) => formatMoney(r.amount_cents, r.currency),
     },
     { key: "method", header: "Method", cell: (r) => PAYMENT_METHOD_LABELS[r.payment_method] },
@@ -111,7 +124,7 @@ export function ReceiptsPage() {
         subtitle={
           isLoading || error
             ? "Every payment recorded and delivered to a payer."
-            : `${receipts.length} ${receipts.length === 1 ? "receipt" : "receipts"}${hasFilters ? " match your filters" : ""}`
+            : `${total} ${total === 1 ? "receipt" : "receipts"}${hasFilters ? " match your filters" : ""}`
         }
       />
 
@@ -171,8 +184,9 @@ export function ReceiptsPage() {
           rowKey={(r) => r.id}
           isLoading={isLoading}
           error={error}
-          onRetry={() => load(filters)}
+          onRetry={() => load(filters, offset)}
           itemLabel="receipts"
+          serverPaging={{ total, offset, limit, onOffsetChange: setOffset, onLimitChange: changeLimit }}
           empty={
             hasFilters ? (
               <EmptyState

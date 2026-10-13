@@ -20,6 +20,26 @@ export const receiptsApi = {
       },
     }),
 
+  /** One page of results plus the total number of matches (X-Total-Count). */
+  listPage: async (filters: ReceiptListFilters, limit: number, offset: number) => {
+    let total = 0;
+    const items = await apiRequest<Receipt[]>("/receipts", {
+      query: {
+        payer_name: filters.payer_name,
+        date_from: filters.date_from,
+        date_to: filters.date_to,
+        amount_cents: filters.amount_cents,
+        status: filters.status,
+        limit,
+        offset,
+      },
+      onResponse: (r) => {
+        total = Number(r.headers.get("X-Total-Count") ?? 0);
+      },
+    });
+    return { items, total: total || items.length };
+  },
+
   get: (id: string) => apiRequest<ReceiptDetail>(`/receipts/${id}`),
 
   create: (payload: ReceiptCreatePayload) => apiRequest<Receipt>("/receipts", { method: "POST", body: payload }),

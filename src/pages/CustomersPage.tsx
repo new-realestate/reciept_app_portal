@@ -10,10 +10,11 @@ import { useToast } from "../components/ToastContext";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 
 const SEARCH_DEBOUNCE_MS = 300;
+const PAGE_SIZE = 15;
 
 const COLUMNS: Column<Customer>[] = [
-  { key: "name", header: "Name", sortValue: (c) => c.name.toLowerCase(), cell: (c) => <strong>{c.name}</strong> },
-  { key: "email", header: "Email", sortValue: (c) => c.email ?? "", cell: (c) => c.email ?? "—" },
+  { key: "name", header: "Name", cell: (c) => <strong>{c.name}</strong> },
+  { key: "email", header: "Email", cell: (c) => c.email ?? "—" },
   { key: "phone", header: "Phone", cell: (c) => c.phone ?? "—" },
 ];
 
@@ -21,6 +22,13 @@ export function CustomersPage() {
   useDocumentTitle("Customers");
   const { notify } = useToast();
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [total, setTotal] = useState(0);
+  const [offset, setOffset] = useState(0);
+  const [limit, setLimit] = useState(PAGE_SIZE);
+  const changeLimit = (n: number) => {
+    setOffset(0);
+    setLimit(n);
+  };
   const [query, setQuery] = useState("");
   const [activeQuery, setActiveQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -28,26 +36,32 @@ export function CustomersPage() {
   const [showModal, setShowModal] = useState(false);
   const requestId = useRef(0);
 
-  const load = useCallback(async (q: string) => {
+  const load = useCallback(async (q: string, from: number) => {
     const id = ++requestId.current;
     setIsLoading(true);
     setError(null);
     try {
-      const data = await customersApi.list(q || undefined);
-      if (id === requestId.current) setCustomers(data);
+      const page = await customersApi.listPage(q || undefined, limit, from);
+      if (id === requestId.current) {
+        setCustomers(page.items);
+        setTotal(page.total);
+      }
     } catch (err) {
       if (id === requestId.current) setError(err instanceof ApiError ? err.message : "Could not load customers.");
     } finally {
       if (id === requestId.current) setIsLoading(false);
     }
-  }, []);
+  }, [limit]);
 
   useEffect(() => {
-    load(activeQuery);
-  }, [activeQuery, load]);
+    load(activeQuery, offset);
+  }, [activeQuery, offset, load]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setActiveQuery(query.trim()), SEARCH_DEBOUNCE_MS);
+    const timer = window.setTimeout(() => {
+      setOffset(0);
+      setActiveQuery(query.trim());
+    }, SEARCH_DEBOUNCE_MS);
     return () => window.clearTimeout(timer);
   }, [query]);
 
@@ -86,8 +100,9 @@ export function CustomersPage() {
           rowKey={(c) => c.id}
           isLoading={isLoading}
           error={error}
-          onRetry={() => load(activeQuery)}
+          onRetry={() => load(activeQuery, offset)}
           itemLabel="customers"
+          serverPaging={{ total, offset, limit, onOffsetChange: setOffset, onLimitChange: changeLimit }}
           empty={
             activeQuery ? (
               <EmptyState
@@ -117,7 +132,7 @@ export function CustomersPage() {
           onCreated={() => {
             setShowModal(false);
             notify("Customer added.", "success");
-            load(activeQuery);
+            load(activeQuery, offset);
           }}
         />
       )}

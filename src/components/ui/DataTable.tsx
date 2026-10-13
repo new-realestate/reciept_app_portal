@@ -26,6 +26,7 @@ export function DataTable<T>({
   empty,
   pageSize = 10,
   itemLabel = "items",
+  serverPaging,
 }: {
   caption: string;
   columns: Column<T>[];
@@ -37,9 +38,19 @@ export function DataTable<T>({
   empty: ReactNode;
   pageSize?: number;
   itemLabel?: string;
+  /** When set, `rows` is already one server-side page and the footer pages through the server. */
+  serverPaging?: {
+    total: number;
+    offset: number;
+    limit: number;
+    onOffsetChange: (offset: number) => void;
+    /** Lets the user choose rows per page; the page resets to the first. */
+    onLimitChange?: (limit: number) => void;
+  };
 }) {
   const [sort, setSort] = useState<SortState>(null);
   const [page, setPage] = useState(0);
+  const [localSize, setLocalSize] = useState(pageSize);
 
   const sorted = useMemo(() => {
     if (!sort) return rows;
@@ -55,9 +66,26 @@ export function DataTable<T>({
     });
   }, [rows, sort, columns]);
 
-  const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize));
-  const safePage = Math.min(page, pageCount - 1);
-  const visible = sorted.slice(safePage * pageSize, safePage * pageSize + pageSize);
+  const effectivePageSize = serverPaging ? serverPaging.limit : localSize;
+  const totalCount = serverPaging ? serverPaging.total : sorted.length;
+  const pageCount = Math.max(1, Math.ceil(totalCount / effectivePageSize));
+  const safePage = serverPaging ? Math.floor(serverPaging.offset / effectivePageSize) : Math.min(page, pageCount - 1);
+  const visible = serverPaging ? sorted : sorted.slice(safePage * effectivePageSize, safePage * effectivePageSize + effectivePageSize);
+
+  function changePageSize(next: number) {
+    if (serverPaging) serverPaging.onLimitChange?.(next);
+    else {
+      setLocalSize(next);
+      setPage(0);
+    }
+  }
+  const sizeOptions = [...new Set([effectivePageSize, 10, 25, 50, 100])].sort((a, b) => a - b);
+  const canChangeSize = serverPaging ? Boolean(serverPaging.onLimitChange) : true;
+
+  function goToPage(next: number) {
+    if (serverPaging) serverPaging.onOffsetChange(next * serverPaging.limit);
+    else setPage(next);
+  }
 
   function toggleSort(key: string) {
     setPage(0);
@@ -90,7 +118,7 @@ export function DataTable<T>({
                   >
                     {c.actions ? (
                       <span className="sr-only">Actions</span>
-                    ) : c.sortValue ? (
+                    ) : c.sortValue && !serverPaging ? (
                       <button type="button" className="sort-btn" onClick={() => toggleSort(c.key)}>
                         {c.header}
                         {active === "asc" ? (
@@ -137,21 +165,33 @@ export function DataTable<T>({
         </table>
       </div>
 
-      {!isLoading && sorted.length > pageSize && (
+      {!isLoading && totalCount > 0 && (
         <div className="table-footer">
           <span aria-live="polite">
-            Showing {safePage * pageSize + 1}–{Math.min((safePage + 1) * pageSize, sorted.length)} of {sorted.length}{" "}
-            {itemLabel}
+            Showing {safePage * effectivePageSize + 1}–{Math.min((safePage + 1) * effectivePageSize, totalCount)} of{" "}
+            {totalCount} {itemLabel} · Page {safePage + 1} of {pageCount}
           </span>
           <div className="row-actions">
-            <Button variant="secondary" size="sm" disabled={safePage === 0} onClick={() => setPage(safePage - 1)}>
+            {canChangeSize && (
+              <label className="page-size">
+                <span>Rows per page</span>
+                <select className="input" value={effectivePageSize} onChange={(e) => changePageSize(Number(e.target.value))}>
+                  {sizeOptions.map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <Button variant="secondary" size="sm" disabled={safePage === 0} onClick={() => goToPage(safePage - 1)}>
               Previous
             </Button>
             <Button
               variant="secondary"
               size="sm"
               disabled={safePage >= pageCount - 1}
-              onClick={() => setPage(safePage + 1)}
+              onClick={() => goToPage(safePage + 1)}
             >
               Next
             </Button>

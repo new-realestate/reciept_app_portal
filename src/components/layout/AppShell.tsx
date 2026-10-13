@@ -1,9 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import {
+  BellRing,
   Building2,
+  CalendarClock,
   ChevronsUpDown,
+  ClipboardList,
+  FileText,
+  LayoutDashboard,
   LogOut,
+  ScrollText,
   Menu,
   Monitor,
   Moon,
@@ -18,7 +24,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { permissions, ROLE_LABELS } from "../../auth/permissions";
 import { useMediaQuery } from "../../hooks/useMediaQuery";
 import { applyTheme, getStoredTheme, resolvedTheme, type ThemePreference } from "../../lib/theme";
-import { ButtonLink, IconButton } from "../ui/ui";
+import { IconButton } from "../ui/ui";
 import { DropdownMenu, type MenuItem } from "../ui/DropdownMenu";
 
 export function AppShell() {
@@ -68,6 +74,13 @@ export function AppShell() {
     ...(theme !== "system" ? [{ label: "Use system theme", icon: Monitor, onSelect: () => chooseTheme("system") }] : []),
   ];
 
+  const createItems: MenuItem[] = [
+    { label: "Receipt", icon: ReceiptText, to: "/receipts/new" },
+    { label: "Invoice", icon: FileText, to: "/invoices/new" },
+    { label: "Quotation", icon: ClipboardList, to: "/quotations/new" },
+    { label: "Payment schedule", icon: CalendarClock, to: "/schedules/new" },
+  ];
+
   const userItems: MenuItem[] = [
     { label: "My profile", icon: UserRound, to: "/profile" },
     ...themeItems,
@@ -85,18 +98,27 @@ export function AppShell() {
       {menuOpen && <button type="button" className="sidebar-backdrop" aria-label="Close navigation" onClick={() => setMenuOpen(false)} />}
 
       <aside id="sidebar" ref={sidebarRef} className="sidebar" aria-label="Primary" inert={drawerHidden || undefined}>
-        <Link to="/receipts" className="sidebar-brand">
+        <Link to="/dashboard" className="sidebar-brand">
           <span className="brand-mark" aria-hidden>
             <ReceiptText size={18} />
           </span>
           Receipt Portal
         </Link>
 
-        <ButtonLink to="/receipts/new" icon={Plus} full>
-          New receipt
-        </ButtonLink>
+        <DropdownMenu label="Create new" items={createItems} triggerClassName="btn btn--primary btn--full" block>
+          <Plus size={16} aria-hidden />
+          New…
+        </DropdownMenu>
 
         <nav className="sidebar-nav" aria-label="Main">
+          <NavLink to="/dashboard" className={({ isActive }) => `nav-link${isActive ? " nav-link--active" : ""}`}>
+            <LayoutDashboard size={18} aria-hidden />
+            Dashboard
+          </NavLink>
+          <NavLink to="/customers" className={({ isActive }) => `nav-link${isActive ? " nav-link--active" : ""}`}>
+            <Users size={18} aria-hidden />
+            Customers
+          </NavLink>
           <Link
             to="/receipts"
             className={`nav-link${receiptsActive ? " nav-link--active" : ""}`}
@@ -105,9 +127,21 @@ export function AppShell() {
             <ReceiptText size={18} aria-hidden />
             Receipts
           </Link>
-          <NavLink to="/customers" className={({ isActive }) => `nav-link${isActive ? " nav-link--active" : ""}`}>
-            <Users size={18} aria-hidden />
-            Customers
+          <NavLink to="/invoices" className={({ isActive }) => `nav-link${isActive ? " nav-link--active" : ""}`}>
+            <FileText size={18} aria-hidden />
+            Invoices
+          </NavLink>
+          <NavLink to="/quotations" className={({ isActive }) => `nav-link${isActive ? " nav-link--active" : ""}`}>
+            <ClipboardList size={18} aria-hidden />
+            Quotations
+          </NavLink>
+          <NavLink to="/schedules" className={({ isActive }) => `nav-link${isActive ? " nav-link--active" : ""}`}>
+            <CalendarClock size={18} aria-hidden />
+            Payment schedules
+          </NavLink>
+          <NavLink to="/reminders" className={({ isActive }) => `nav-link${isActive ? " nav-link--active" : ""}`}>
+            <BellRing size={18} aria-hidden />
+            Payment reminders
           </NavLink>
 
           <div className="nav-section-label" id="nav-settings">
@@ -129,6 +163,12 @@ export function AppShell() {
               </>
             )}
           </NavLink>
+          {permissions.canManageDocuments(session.role) && (
+            <NavLink to="/audit-log" className={({ isActive }) => `nav-link${isActive ? " nav-link--active" : ""}`}>
+              <ScrollText size={18} aria-hidden />
+              Audit log
+            </NavLink>
+          )}
           <NavLink to="/profile" className={({ isActive }) => `nav-link${isActive ? " nav-link--active" : ""}`}>
             <UserRound size={18} aria-hidden />
             Profile
@@ -160,9 +200,10 @@ export function AppShell() {
             onClick={() => setMenuOpen((v) => !v)}
           />
           <span className="topbar-title">Receipt Portal</span>
-          <ButtonLink to="/receipts/new" size="sm" icon={Plus}>
-            New receipt
-          </ButtonLink>
+          <DropdownMenu label="Create new" items={createItems} triggerClassName="btn btn--primary btn--sm">
+            <Plus size={16} aria-hidden />
+            New…
+          </DropdownMenu>
         </div>
 
         <main id="main-content" className="app-content" tabIndex={-1}>
