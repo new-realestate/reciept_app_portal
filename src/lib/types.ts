@@ -157,6 +157,9 @@ export interface DeliveryAttempt {
 
 export interface ReceiptDetail extends Receipt {
   delivery_attempts: DeliveryAttempt[];
+  customer_name: string | null;
+  customer_phone: string | null;
+  business_name: string | null;
 }
 
 export interface SendReceiptPayload {

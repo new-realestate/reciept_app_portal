@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ChevronDown, Copy, Download, ExternalLink, FileQuestion, Mail, MessageSquare, MoreHorizontal, Send } from "lucide-react";
+import { ChevronDown, Copy, Download, ExternalLink, FileQuestion, Mail, MessageCircle, MessageSquare, MoreHorizontal, Send } from "lucide-react";
 import { useParams } from "react-router-dom";
 import { receiptsApi } from "../api/receipts";
 import { ApiError } from "../lib/apiClient";
@@ -19,6 +19,19 @@ import { DropdownMenu } from "../components/ui/DropdownMenu";
 import { DeliveryStatusBadge, ReceiptStatusBadge } from "../components/ui/StatusBadge";
 import { useToast } from "../components/ToastContext";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
+
+/**
+ * WhatsApp click-to-chat link with the receipt message prefilled; the user taps Send in WhatsApp.
+ * Without a usable phone number WhatsApp asks which chat to share to.
+ */
+function whatsAppShareUrl(receipt: ReceiptDetail, hostedUrl: string): string {
+  const business = receipt.business_name ? `${receipt.business_name}: ` : "";
+  const text = `${business}Payment of ${formatMoney(receipt.amount_cents, receipt.currency)} received. View your receipt: ${hostedUrl}`;
+  // wa.me wants the international number as digits only; local numbers ("07…") are Ugandan, like the API's default.
+  let digits = (receipt.customer_phone ?? "").replace(/\D/g, "");
+  if (digits.startsWith("0")) digits = `256${digits.slice(1)}`;
+  return `https://wa.me/${digits.length >= 8 ? digits : ""}?text=${encodeURIComponent(text)}`;
+}
 
 export function ReceiptDetailPage() {
   const { receiptId } = useParams<{ receiptId: string }>();
@@ -122,6 +135,12 @@ export function ReceiptDetailPage() {
                   label: `${verb} by email and SMS`,
                   icon: Send,
                   onSelect: () => handleSend(["email", "sms"], hasBeenSent),
+                },
+                {
+                  label: receipt.customer_phone ? `Share on WhatsApp with ${receipt.customer_name ?? "customer"}` : "Share on WhatsApp",
+                  icon: MessageCircle,
+                  href: whatsAppShareUrl(receipt, hostedUrl),
+                  separatorBefore: true,
                 },
               ]}
             >
