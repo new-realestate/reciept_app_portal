@@ -1,8 +1,16 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
 import { ToastProvider } from "./components/ToastContext";
-import { ProtectedRoute } from "./components/ProtectedRoute";
+import { ProtectedRoute, RequirePlatformAdmin } from "./components/ProtectedRoute";
 import { AppShell } from "./components/layout/AppShell";
+import { PlatformShell } from "./components/layout/PlatformShell";
+import {
+  PlatformAuditPage,
+  PlatformBusinessDetailPage,
+  PlatformBusinessesPage,
+  PlatformDashboardPage,
+  PlatformUsersPage,
+} from "./pages/platform/PlatformPages";
 import { LoginPage } from "./pages/auth/LoginPage";
 import { SignupPage } from "./pages/auth/SignupPage";
 import { VerifyEmailPage } from "./pages/auth/VerifyEmailPage";
@@ -27,7 +35,8 @@ import { AuditLogPage } from "./pages/AuditLogPage";
 
 function RootRedirect() {
   const { session } = useAuth();
-  return <Navigate to={session ? "/dashboard" : "/login"} replace />;
+  const home = session?.isSuperadmin && !session.impersonating ? "/platform" : "/dashboard";
+  return <Navigate to={session ? home : "/login"} replace />;
 }
 
 function AppRoutes() {
@@ -62,6 +71,16 @@ function AppRoutes() {
           <Route path="/audit-log" element={<AuditLogPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/admin" element={<AdminPortalPage />} />
+        </Route>
+      </Route>
+
+      <Route element={<RequirePlatformAdmin />}>
+        <Route element={<PlatformShell />}>
+          <Route path="/platform" element={<PlatformDashboardPage />} />
+          <Route path="/platform/businesses" element={<PlatformBusinessesPage />} />
+          <Route path="/platform/businesses/:tenantId" element={<PlatformBusinessDetailPage />} />
+          <Route path="/platform/users" element={<PlatformUsersPage />} />
+          <Route path="/platform/audit-log" element={<PlatformAuditPage />} />
         </Route>
       </Route>
 

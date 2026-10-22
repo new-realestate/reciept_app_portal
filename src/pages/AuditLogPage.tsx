@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { FilterX, ScrollText } from "lucide-react";
+import { FilterX, ScrollText, ShieldCheck } from "lucide-react";
 import { auditApi, type AuditEntry, type AuditFilters } from "../api/audit";
 import { useAuth } from "../auth/AuthContext";
 import { permissions } from "../auth/permissions";
 import { ApiError } from "../lib/apiClient";
 import { activityLabel, entityLink } from "../lib/activity";
 import { formatDateTime } from "../lib/format";
-import { Button, Card, EmptyState, Field, Input, LockedNotice, PageHeader, Select } from "../components/ui/ui";
+import { Badge, Button, Card, EmptyState, Field, Input, LockedNotice, PageHeader, Select } from "../components/ui/ui";
 import { DataTable, type Column } from "../components/ui/DataTable";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 
@@ -17,7 +17,7 @@ const ENTITY_TYPES = ["invoice", "quotation", "receipt", "schedule", "tenant", "
 function details(meta: Record<string, unknown> | null): string {
   if (!meta) return "";
   return Object.entries(meta)
-    .filter(([, v]) => v !== null && v !== undefined && v !== "")
+    .filter(([k, v]) => k !== "platform_admin" && v !== null && v !== undefined && v !== "")
     .map(([k, v]) => `${k.replace(/_/g, " ")}: ${Array.isArray(v) ? v.join(", ") : typeof v === "object" ? JSON.stringify(v) : String(v)}`)
     .join(" · ");
 }
@@ -94,6 +94,12 @@ export function AuditLogPage() {
           <>
             {a.actor_name}
             {a.actor_email && <span className="cell-note"> · {a.actor_email}</span>}
+            {a.platform_admin && (
+              <>
+                {" "}
+                <Badge tone="info" icon={ShieldCheck}>Platform admin</Badge>
+              </>
+            )}
           </>
         ) : (
           <span className="muted-text">Customer or system</span>

@@ -9,6 +9,8 @@ export interface AuditEntry {
   actor_user_id: string | null;
   actor_name: string | null;
   actor_email: string | null;
+  /** A platform super admin did this (directly, or while acting as the business). */
+  platform_admin?: boolean;
   metadata: Record<string, unknown> | null;
   created_at: string;
 }

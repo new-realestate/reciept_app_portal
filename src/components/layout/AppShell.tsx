@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   BellRing,
   Building2,
@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   LogOut,
   ScrollText,
+  ShieldCheck,
   Menu,
   Monitor,
   Moon,
@@ -24,12 +25,13 @@ import { useAuth } from "../../auth/AuthContext";
 import { permissions, ROLE_LABELS } from "../../auth/permissions";
 import { useMediaQuery } from "../../hooks/useMediaQuery";
 import { applyTheme, getStoredTheme, resolvedTheme, type ThemePreference } from "../../lib/theme";
-import { IconButton } from "../ui/ui";
+import { Button, IconButton } from "../ui/ui";
 import { DropdownMenu, type MenuItem } from "../ui/DropdownMenu";
 
 export function AppShell() {
-  const { session, logout } = useAuth();
+  const { session, logout, stopImpersonation } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const isMobile = useMediaQuery("(max-width: 900px)");
   const [menuOpen, setMenuOpen] = useState(false);
   const [theme, setTheme] = useState<ThemePreference>(getStoredTheme);
@@ -56,6 +58,12 @@ export function AppShell() {
 
   if (!session) return null;
   const canAdmin = permissions.canViewAdminPortal(session.role);
+
+  function exitImpersonation() {
+    const tenantId = session?.impersonating?.tenantId;
+    stopImpersonation();
+    navigate(tenantId ? `/platform/businesses/${tenantId}` : "/platform", { replace: true });
+  }
 
   // "Receipts" stays highlighted on a receipt's detail page, but not on "New receipt".
   const receiptsActive =
@@ -190,6 +198,17 @@ export function AppShell() {
       </aside>
 
       <div className="app-main">
+        {session.impersonating && (
+          <div className="impersonation-banner" role="status">
+            <ShieldCheck size={16} aria-hidden />
+            <span>
+              Acting as <strong>{session.impersonating.businessName}</strong>. Everything you do is logged under your name.
+            </span>
+            <Button size="sm" variant="secondary" icon={LogOut} onClick={exitImpersonation}>
+              Exit
+            </Button>
+          </div>
+        )}
         <div className="topbar">
           <IconButton
             ref={toggleRef}

@@ -141,3 +141,16 @@ export function DeliveryStatusBadge({ status }: { status: DeliveryStatus }) {
     </Badge>
   );
 }
+
+/** Platform admin: whether a business or user account is usable. */
+export function AccountStatusBadge({ suspendedAt }: { suspendedAt: string | null }) {
+  return suspendedAt ? (
+    <Badge tone="danger" icon={Ban}>
+      Suspended
+    </Badge>
+  ) : (
+    <Badge tone="success" icon={CheckCircle2}>
+      Active
+    </Badge>
+  );
+}

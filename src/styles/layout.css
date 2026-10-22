@@ -308,3 +308,24 @@
     bottom: var(--space-3);
   }
 }
+
+/* Shown across the top while a platform super admin acts as a business. */
+.impersonation-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-6);
+  background: var(--warning-soft);
+  color: var(--warning);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-sm);
+}
+
+.impersonation-banner strong {
+  color: var(--text);
+}
+
+.impersonation-banner .btn {
+  margin-left: auto;
+}

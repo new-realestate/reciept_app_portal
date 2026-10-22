@@ -20,17 +20,27 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethodType, string> = {
 
 export interface JwtClaims {
   sub: string;
-  tenant_id: string;
+  /** null for a platform super admin who isn't acting as a business. */
+  tenant_id: string | null;
   role: UserRole;
   exp: number;
+  /** Platform super admin. */
+  sa?: boolean;
+  /** Set on the short-lived token a super admin gets when acting as a business. */
+  imp?: boolean;
+  act_tenant_id?: string;
+  act_tenant_name?: string;
 }
 
 export interface AuthSession {
   token: string;
   userId: string;
-  tenantId: string;
+  tenantId: string | null;
   role: UserRole;
   email: string;
+  isSuperadmin: boolean;
+  /** The business a super admin is acting as, or null. */
+  impersonating: { tenantId: string; businessName: string } | null;
 }
 
 export interface SignupPayload {

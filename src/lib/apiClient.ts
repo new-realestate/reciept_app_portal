@@ -6,6 +6,8 @@ export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "https://recie
 );
 
 const TOKEN_STORAGE_KEY = "receipt_portal_token";
+// While a super admin acts as a business, their own token waits here.
+const ADMIN_TOKEN_STORAGE_KEY = "receipt_portal_admin_token";
 
 export class ApiError extends Error {
   status: number;
@@ -28,6 +30,18 @@ export function setStoredToken(token: string | null) {
     localStorage.setItem(TOKEN_STORAGE_KEY, token);
   } else {
     localStorage.removeItem(TOKEN_STORAGE_KEY);
+  }
+}
+
+export function getStoredAdminToken(): string | null {
+  return localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY);
+}
+
+export function setStoredAdminToken(token: string | null) {
+  if (token) {
+    localStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, token);
+  } else {
+    localStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY);
   }
 }
 
