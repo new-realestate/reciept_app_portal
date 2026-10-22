@@ -43,6 +43,15 @@ export interface AuthSession {
   impersonating: { tenantId: string; businessName: string } | null;
 }
 
+/** GET /users/me */
+export interface Me {
+  id: string;
+  full_name: string;
+  email: string;
+  role: UserRole;
+  signature_image_url: string | null;
+}
+
 export interface SignupPayload {
   business_name: string;
   full_name: string;
