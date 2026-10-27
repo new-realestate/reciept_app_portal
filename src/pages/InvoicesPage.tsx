@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Download, Eye, FileText, FilterX, MoreHorizontal, Plus, Search, SearchX } from "lucide-react";
 import { invoicesApi } from "../api/documents";
@@ -12,14 +12,14 @@ import { DropdownMenu } from "../components/ui/DropdownMenu";
 import { InvoiceStatusBadge } from "../components/ui/StatusBadge";
 import { useToast } from "../components/ToastContext";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import { useApiQuery } from "../hooks/useApiQuery";
+import { qk } from "../lib/queryKeys";
 
 const PAGE_SIZE = 15;
 
 export function InvoicesPage() {
   useDocumentTitle("Invoices");
   const { notify } = useToast();
-  const [items, setItems] = useState<Invoice[]>([]);
-  const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
   const [limit, setLimit] = useState(PAGE_SIZE);
   const changeLimit = (n: number) => {
@@ -29,32 +29,15 @@ export function InvoicesPage() {
   const [searchParams] = useSearchParams();
   const [filters, setFilters] = useState<InvoiceListFilters>(() => ({ status: searchParams.get("status") ?? undefined }));
   const [search, setSearch] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const requestId = useRef(0);
 
   const hasFilters = Object.values(filters).some((v) => v !== undefined && v !== "") || search !== "";
 
-  const load = useCallback(async () => {
-    const id = ++requestId.current;
-    setIsLoading(true);
-    setError(null);
-    try {
-      const page = await invoicesApi.list({ ...filters, limit, offset });
-      if (id === requestId.current) {
-        setItems(page.items);
-        setTotal(page.total);
-      }
-    } catch (err) {
-      if (id === requestId.current) setError(err instanceof ApiError ? err.message : "Could not load invoices.");
-    } finally {
-      if (id === requestId.current) setIsLoading(false);
-    }
-  }, [filters, offset, limit]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  const { data: page, isLoading, error, reload } = useApiQuery(qk.invoices({ filters, limit, offset }), () => invoicesApi.list({ ...filters, limit, offset }), {
+    fallbackError: "Could not load invoices.",
+    keepPrevious: true,
+  });
+  const items = page?.items ?? [];
+  const total = page?.total ?? 0;
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -187,7 +170,7 @@ export function InvoicesPage() {
           rowKey={(i) => i.id}
           isLoading={isLoading}
           error={error}
-          onRetry={load}
+          onRetry={reload}
           itemLabel="invoices"
           serverPaging={{ total, offset, limit, onOffsetChange: setOffset, onLimitChange: changeLimit }}
           empty={

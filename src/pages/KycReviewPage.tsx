@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ShieldCheck } from "lucide-react";
 import { kycApi } from "../api/kyc";
-import { ApiError } from "../lib/apiClient";
 import { formatDateTime } from "../lib/format";
 import type { KycQueueItem } from "../lib/propertyTypes";
 import { Badge, Card, EmptyState, PageHeader } from "../components/ui/ui";
@@ -10,6 +9,8 @@ import { DataTable, type Column } from "../components/ui/DataTable";
 import { KycStatusBadge } from "../components/ui/StatusBadge";
 import { KycPanel } from "../components/kyc/KycPanel";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import { useApiQuery } from "../hooks/useApiQuery";
+import { qk } from "../lib/queryKeys";
 
 const COLUMNS: Column<KycQueueItem>[] = [
   {
@@ -28,25 +29,10 @@ const COLUMNS: Column<KycQueueItem>[] = [
 
 export function KycReviewPage() {
   useDocumentTitle("KYC review");
-  const [items, setItems] = useState<KycQueueItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      setItems(await kycApi.queue());
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not load the review queue.");
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  const { data, isLoading, error, reload: load } = useApiQuery(qk.kycQueue(), kycApi.queue, {
+    fallbackError: "Could not load the review queue.",
+  });
+  const items: KycQueueItem[] = data ?? [];
 
   return (
     <div>

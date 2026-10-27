@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   BellRing,
@@ -19,7 +19,7 @@ import { invoicesApi, notificationsApi } from "../api/documents";
 import { useAuth } from "../auth/AuthContext";
 import { permissions } from "../auth/permissions";
 import { ApiError } from "../lib/apiClient";
-import type { InvoiceDetail, NotificationEvent } from "../lib/documentTypes";
+import type { InvoiceDetail } from "../lib/documentTypes";
 import { formatDay, formatMoney } from "../lib/format";
 import { PAYMENT_METHOD_LABELS, type DeliveryChannel, type PaymentMethodType } from "../lib/types";
 import { Alert, Button, ButtonLink, Card, CardHeader, EmptyState, ErrorState, PageHeader, Spinner } from "../components/ui/ui";
@@ -29,6 +29,10 @@ import { InvoiceStatusBadge } from "../components/ui/StatusBadge";
 import { NotificationList, RecordPaymentModal, SendDialog, copyToClipboard } from "../components/documents/DocumentParts";
 import { useToast } from "../components/ToastContext";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import { useApiQuery } from "../hooks/useApiQuery";
+import { qk } from "../lib/queryKeys";
+import { detailQueries } from "../lib/detailQueries";
+import { useQueryClient } from "@tanstack/react-query";
 
 type Dialog = null | "send" | "remind" | "pay" | "cancel" | "revoke" | "rotate" | "issue";
 
@@ -36,9 +40,19 @@ export function InvoiceDetailPage() {
   const { invoiceId } = useParams<{ invoiceId: string }>();
   const { session } = useAuth();
   const { notify } = useToast();
-  const [invoice, setInvoice] = useState<InvoiceDetail | null>(null);
-  const [events, setEvents] = useState<NotificationEvent[]>([]);
-  const [error, setError] = useState<{ message: string; notFound: boolean } | null>(null);
+  const docQuery = detailQueries.invoice(invoiceId ?? "");
+  const query = useApiQuery(
+    docQuery.queryKey,
+    docQuery.queryFn,
+    { fallbackError: "Could not load the invoice.", enabled: Boolean(invoiceId) },
+  );
+  const invoice = query.data?.doc ?? null;
+  const events = query.data?.events ?? [];
+  const error = query.error ? { message: query.error, notFound: query.errorStatus === 404 } : null;
+  const queryClient = useQueryClient();
+  // Show a document returned by an action straight away; the background refetch follows.
+  const setInvoice = (doc: InvoiceDetail) =>
+    queryClient.setQueryData(qk.invoice(invoiceId ?? ""), (old: { doc: InvoiceDetail; events: typeof events } | undefined) => ({ doc, events: old?.events ?? [] }));
   const [dialog, setDialog] = useState<Dialog>(null);
   const [busy, setBusy] = useState(false);
   const [busyEvent, setBusyEvent] = useState<string | null>(null);
@@ -46,21 +60,7 @@ export function InvoiceDetailPage() {
   useDocumentTitle(invoice ? `Invoice ${invoice.number ?? "draft"}` : "Invoice");
   const canManage = session ? permissions.canManageDocuments(session.role) : false;
 
-  const load = useCallback(async () => {
-    if (!invoiceId) return;
-    try {
-      const [inv, ev] = await Promise.all([invoicesApi.get(invoiceId), invoicesApi.notifications(invoiceId)]);
-      setInvoice(inv);
-      setEvents(ev);
-      setError(null);
-    } catch (err) {
-      setError({ message: err instanceof ApiError ? err.message : "Could not load the invoice.", notFound: err instanceof ApiError && err.status === 404 });
-    }
-  }, [invoiceId]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  const load = query.reload;
 
   async function run(action: () => Promise<unknown>, success: string) {
     setBusy(true);

@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Ban, CalendarClock, FileQuestion, FileText, MoreHorizontal, Pause, Play, Plus, SkipForward } from "lucide-react";
 import { schedulesApi } from "../api/documents";
-import { tenantApi } from "../api/tenant";
+import { useAccess } from "../auth/AccessContext";
 import { ApiError } from "../lib/apiClient";
 import type { Frequency, Occurrence, Schedule, ScheduleDetail, SchedulePayload } from "../lib/documentTypes";
 import { centsFromInput, formatDay, formatMoney, todayISO } from "../lib/format";
@@ -19,6 +19,9 @@ import { CustomerPicker } from "../components/documents/CustomerPicker";
 import { contextPayload, PropertyContextPicker } from "../components/documents/PropertyContextPicker";
 import { useToast } from "../components/ToastContext";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import { useApiQuery } from "../hooks/useApiQuery";
+import { qk } from "../lib/queryKeys";
+import { detailQueries } from "../lib/detailQueries";
 
 export const FREQUENCY_LABELS: Record<Frequency, string> = {
   once: "One time",
@@ -34,8 +37,6 @@ const PAGE_SIZE = 15;
 
 export function SchedulesPage() {
   useDocumentTitle("Payment schedules");
-  const [items, setItems] = useState<Schedule[]>([]);
-  const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
   const [limit, setLimit] = useState(PAGE_SIZE);
   const changeLimit = (n: number) => {
@@ -43,30 +44,14 @@ export function SchedulesPage() {
     setLimit(n);
   };
   const [status, setStatus] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const requestId = useRef(0);
 
-  const load = useCallback(async () => {
-    const id = ++requestId.current;
-    setIsLoading(true);
-    setError(null);
-    try {
-      const page = await schedulesApi.list({ status: status || undefined, limit, offset });
-      if (id === requestId.current) {
-        setItems(page.items);
-        setTotal(page.total);
-      }
-    } catch (err) {
-      if (id === requestId.current) setError(err instanceof ApiError ? err.message : "Could not load schedules.");
-    } finally {
-      if (id === requestId.current) setIsLoading(false);
-    }
-  }, [status, offset, limit]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  const { data, isLoading, error, reload: load } = useApiQuery(
+    qk.schedules({ status, limit, offset }),
+    () => schedulesApi.list({ status: status || undefined, limit, offset }),
+    { fallbackError: "Could not load schedules.", keepPrevious: true },
+  );
+  const items: Schedule[] = data?.items ?? [];
+  const total = data?.total ?? 0;
 
   const columns: Column<Schedule>[] = [
     {
@@ -145,7 +130,7 @@ export function NewSchedulePage() {
   useDocumentTitle("New payment schedule");
   const navigate = useNavigate();
   const { notify } = useToast();
-  const [currency, setCurrency] = useState("UGX");
+  const currency = useAccess().business?.default_currency ?? "UGX";
   const [mode, setMode] = useState<"existing" | "new">("existing");
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [context, setContext] = useState<PropertyContext>({});
@@ -163,10 +148,6 @@ export function NewSchedulePage() {
   const [autoInvoice, setAutoInvoice] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    tenantApi.getMine().then((t) => setCurrency(t.default_currency)).catch(() => undefined);
-  }, []);
 
   function validate() {
     const next: Record<string, string> = {};
@@ -303,8 +284,13 @@ export function ScheduleDetailPage() {
   const { scheduleId } = useParams<{ scheduleId: string }>();
   const navigate = useNavigate();
   const { notify } = useToast();
-  const [schedule, setSchedule] = useState<ScheduleDetail | null>(null);
-  const [error, setError] = useState<{ message: string; notFound: boolean } | null>(null);
+  const scheduleDef = detailQueries.schedule(scheduleId ?? "");
+  const scheduleQuery = useApiQuery(scheduleDef.queryKey, scheduleDef.queryFn, {
+    fallbackError: "Could not load the schedule.",
+    enabled: Boolean(scheduleId),
+  });
+  const schedule: ScheduleDetail | null = scheduleQuery.data ?? null;
+  const error = scheduleQuery.error ? { message: scheduleQuery.error, notFound: scheduleQuery.errorStatus === 404 } : null;
   const [confirm, setConfirm] = useState<null | "cancel" | { skip: Occurrence } | { invoice: Occurrence }>(null);
   const [busy, setBusy] = useState(false);
   const [editingAmount, setEditingAmount] = useState(false);
@@ -312,19 +298,7 @@ export function ScheduleDetailPage() {
 
   useDocumentTitle(schedule ? schedule.description : "Payment schedule");
 
-  const load = useCallback(async () => {
-    if (!scheduleId) return;
-    try {
-      setSchedule(await schedulesApi.get(scheduleId));
-      setError(null);
-    } catch (err) {
-      setError({ message: err instanceof ApiError ? err.message : "Could not load the schedule.", notFound: err instanceof ApiError && err.status === 404 });
-    }
-  }, [scheduleId]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  const load = scheduleQuery.reload;
 
   async function run(action: () => Promise<unknown>, success: string) {
     setBusy(true);

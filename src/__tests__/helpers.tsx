@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "../auth/AuthContext";
 import { StaticAccessProvider } from "../auth/AccessContext";
 import { ToastProvider } from "../components/ToastContext";
@@ -28,7 +29,7 @@ export function makeMe(role: UserRole, overrides: Partial<Me> = {}): Me {
     permissions: isManager ? [...STAFF_DEFAULTS, "renters.kyc_review", "reports.view"] : STAFF_DEFAULTS,
     is_manager: isManager,
     assigned_property_ids: [],
-    business: { id: "t1", name: "Demo Business", logo_url: null, brand_color: null },
+    business: { id: "t1", name: "Demo Business", logo_url: null, brand_color: null, default_currency: "UGX", timezone: "Africa/Kampala" },
     ...overrides,
   };
 }
@@ -41,13 +42,17 @@ export function fakeToken(role: UserRole) {
 
 export function renderWithApp(ui: ReactNode, { me, path = "/" }: { me: Me; path?: string }) {
   localStorage.setItem("receipt_portal_token", fakeToken(me.role));
+  // A fresh cache per test so nothing leaks between them.
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return (
-    <MemoryRouter initialEntries={[path]}>
-      <AuthProvider>
-        <ToastProvider>
-          <StaticAccessProvider me={me}>{ui}</StaticAccessProvider>
-        </ToastProvider>
-      </AuthProvider>
-    </MemoryRouter>
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={[path]}>
+        <AuthProvider>
+          <ToastProvider>
+            <StaticAccessProvider me={me}>{ui}</StaticAccessProvider>
+          </ToastProvider>
+        </AuthProvider>
+      </MemoryRouter>
+    </QueryClientProvider>
   );
 }

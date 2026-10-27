@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { ChevronDown, Copy, Download, ExternalLink, FileQuestion, Mail, MessageCircle, MessageSquare, MoreHorizontal, Send } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { receiptsApi } from "../api/receipts";
@@ -19,6 +19,8 @@ import { DropdownMenu } from "../components/ui/DropdownMenu";
 import { DeliveryStatusBadge, ReceiptStatusBadge } from "../components/ui/StatusBadge";
 import { useToast } from "../components/ToastContext";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import { useApiQuery } from "../hooks/useApiQuery";
+import { detailQueries } from "../lib/detailQueries";
 
 /**
  * WhatsApp click-to-chat link with the receipt message prefilled; the user taps Send in WhatsApp.
@@ -36,30 +38,18 @@ function whatsAppShareUrl(receipt: ReceiptDetail, hostedUrl: string): string {
 export function ReceiptDetailPage() {
   const { receiptId } = useParams<{ receiptId: string }>();
   const { notify } = useToast();
-  const [receipt, setReceipt] = useState<ReceiptDetail | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<{ message: string; notFound: boolean } | null>(null);
+  const receiptQuery = detailQueries.receipt(receiptId ?? "");
+  const query = useApiQuery(receiptQuery.queryKey, receiptQuery.queryFn, {
+    fallbackError: "Could not load the receipt.",
+    enabled: Boolean(receiptId),
+  });
+  const receipt: ReceiptDetail | null = query.data ?? null;
+  const isLoading = query.isLoading;
+  const error = query.error ? { message: query.error, notFound: query.errorStatus === 404 } : null;
+  const load = query.reload;
   const [isSending, setIsSending] = useState(false);
 
   useDocumentTitle(receipt ? `Receipt ${receipt.reference_number}` : "Receipt");
-
-  const load = useCallback(async () => {
-    if (!receiptId) return;
-    setIsLoading(true);
-    setError(null);
-    try {
-      setReceipt(await receiptsApi.get(receiptId));
-    } catch (err) {
-      const notFound = err instanceof ApiError && err.status === 404;
-      setError({ message: err instanceof ApiError ? err.message : "Could not load the receipt.", notFound });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [receiptId]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
 
   async function handleSend(channels: DeliveryChannel[], isResend: boolean) {
     if (!receiptId) return;

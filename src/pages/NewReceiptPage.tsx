@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { customersApi } from "../api/customers";
 import { receiptsApi } from "../api/receipts";
-import { tenantApi } from "../api/tenant";
+import { useAccess } from "../auth/AccessContext";
 import { ApiError } from "../lib/apiClient";
 import { centsFromInput } from "../lib/format";
 import { PAYMENT_METHOD_LABELS, type Customer, type PaymentMethodType, type PropertyContext } from "../lib/types";
@@ -44,7 +44,7 @@ export function NewReceiptPage() {
   const [params] = useSearchParams();
   const { notify } = useToast();
 
-  const [currency, setCurrency] = useState<string | null>(null);
+  const currency = useAccess().business?.default_currency ?? null;
   const [customerMode, setCustomerMode] = useState<"existing" | "new">("existing");
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [context, setContext] = useState<PropertyContext>({});
@@ -67,13 +67,6 @@ export function NewReceiptPage() {
     const presetCustomer = params.get("customer");
     if (presetCustomer) customersApi.get(presetCustomer).then(setCustomer).catch(() => undefined);
   }, [params]);
-
-  useEffect(() => {
-    tenantApi
-      .getMine()
-      .then((t) => setCurrency(t.default_currency))
-      .catch(() => undefined);
-  }, []);
 
   function validate(): boolean {
     const next: Record<string, string> = {};

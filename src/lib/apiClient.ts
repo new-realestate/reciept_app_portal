@@ -60,6 +60,12 @@ export function onUnauthorized(listener: UnauthorizedListener) {
   unauthorizedListener = listener;
 }
 
+/** Fired after any successful write (non-GET) so cached reads can be refreshed. */
+let mutationListener: (() => void) | null = null;
+export function onMutationSuccess(listener: () => void) {
+  mutationListener = listener;
+}
+
 interface RequestOptions {
   method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
   body?: unknown;
@@ -122,6 +128,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   onResponse?.(response);
 
   if (response.status === 204) {
+    if (method !== "GET") mutationListener?.();
     return undefined as T;
   }
 
@@ -149,6 +156,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     throw new ApiError(message, response.status, fieldErrors, data);
   }
 
+  if (method !== "GET") mutationListener?.();
   return json as T;
 }
 

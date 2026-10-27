@@ -1,11 +1,10 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { CalendarX, Home, Plus, ReceiptText, Search, SearchX } from "lucide-react";
 import { customersApi } from "../api/customers";
 import { kycApi } from "../api/kyc";
 import { propertiesApi } from "../api/properties";
 import { rentersApi } from "../api/renters";
-import { tenantApi } from "../api/tenant";
 import { useAccess } from "../auth/AccessContext";
 import { ApiError } from "../lib/apiClient";
 import { centsFromInput, formatDate, formatMoney, todayISO } from "../lib/format";
@@ -45,6 +44,10 @@ import { NoAccess } from "../components/RequirePerm";
 import { DocumentHistory } from "./CustomerDetailPage";
 import { useToast } from "../components/ToastContext";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import { useApiQuery } from "../hooks/useApiQuery";
+import { useQueryClient } from "@tanstack/react-query";
+import { qk } from "../lib/queryKeys";
+import { detailQueries } from "../lib/detailQueries";
 
 const SEARCH_DEBOUNCE_MS = 300;
 const PAGE_SIZE = 15;
@@ -77,46 +80,21 @@ const COLUMNS: Column<Renter>[] = [
 
 export function RentersPage() {
   useDocumentTitle("Tenants");
-  const [rows, setRows] = useState<Renter[]>([]);
-  const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
   const [query, setQuery] = useState("");
   const [activeQuery, setActiveQuery] = useState("");
   const [status, setStatus] = useState("");
   const [propertyId, setPropertyId] = useState("");
-  const [properties, setProperties] = useState<Property[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const requestId = useRef(0);
+  const properties: Property[] = useApiQuery(qk.properties({}), () => propertiesApi.list()).data ?? [];
 
-  useEffect(() => {
-    propertiesApi.list().then(setProperties).catch(() => undefined);
-  }, []);
-
-  const load = useCallback(async () => {
-    const id = ++requestId.current;
-    setIsLoading(true);
-    setError(null);
-    try {
-      const page = await rentersApi.listPage(
-        { q: activeQuery || undefined, status: status || undefined, property_id: propertyId || undefined },
-        PAGE_SIZE,
-        offset,
-      );
-      if (id === requestId.current) {
-        setRows(page.items);
-        setTotal(page.total);
-      }
-    } catch (err) {
-      if (id === requestId.current) setError(err instanceof ApiError ? err.message : "Could not load tenants.");
-    } finally {
-      if (id === requestId.current) setIsLoading(false);
-    }
-  }, [activeQuery, status, propertyId, offset]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  const filters = { q: activeQuery || undefined, status: status || undefined, property_id: propertyId || undefined };
+  const { data, isLoading, error, reload: load } = useApiQuery(
+    qk.renters({ ...filters, offset }),
+    () => rentersApi.listPage(filters, PAGE_SIZE, offset),
+    { fallbackError: "Could not load tenants.", keepPrevious: true },
+  );
+  const rows: Renter[] = data?.items ?? [];
+  const total = data?.total ?? 0;
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -362,7 +340,7 @@ export function NewRenterPage() {
   const [params] = useSearchParams();
   const { isManager } = useAccess();
   const { notify } = useToast();
-  const [currency, setCurrency] = useState("UGX");
+  const currency = useAccess().business?.default_currency ?? "UGX";
   const [mode, setMode] = useState<"existing" | "new">(params.get("customer") ? "existing" : "new");
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [name, setName] = useState("");
@@ -380,7 +358,6 @@ export function NewRenterPage() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    tenantApi.getMine().then((t) => setCurrency(t.default_currency)).catch(() => undefined);
     const customerId = params.get("customer");
     if (customerId) customersApi.get(customerId).then(setCustomer).catch(() => undefined);
   }, [params]);
@@ -573,28 +550,27 @@ export function RenterDetailPage() {
   const { renterId = "" } = useParams();
   const { isManager, can } = useAccess();
   const { notify } = useToast();
-  const [renter, setRenter] = useState<RenterDetail | null>(null);
-  const [docs, setDocs] = useState<CustomerDocuments | null>(null);
-  const [error, setError] = useState<{ message: string; status: number } | null>(null);
+  const queryClient = useQueryClient();
+  const renterDef = detailQueries.renter(renterId);
+  const renterQuery = useApiQuery(renterDef.queryKey, renterDef.queryFn, { fallbackError: "Could not load the tenant." });
+  const renter = renterQuery.data ?? null;
+  const docsQuery = useApiQuery(
+    qk.customerDocuments(renter?.customer_id ?? ""),
+    () => customersApi.documents(renter?.customer_id ?? ""),
+    { enabled: Boolean(renter) && can("customers.view") },
+  );
+  const docs: CustomerDocuments | null = docsQuery.data ?? null;
+  const error = renterQuery.error ? { message: renterQuery.error, status: renterQuery.errorStatus ?? 0 } : null;
+  const setRenter = (r: RenterDetail) => queryClient.setQueryData(qk.renter(renterId), r);
+  const load = () => {
+    void renterQuery.reload();
+    void docsQuery.reload();
+  };
   const [addingTenancy, setAddingTenancy] = useState(false);
   const [ending, setEnding] = useState<Tenancy | null>(null);
   const [editing, setEditing] = useState(false);
   useDocumentTitle(renter?.customer.name ?? "Tenant");
 
-  const load = useCallback(async () => {
-    setError(null);
-    try {
-      const r = await rentersApi.get(renterId);
-      setRenter(r);
-      if (can("customers.view")) customersApi.documents(r.customer_id).then(setDocs).catch(() => setDocs(null));
-    } catch (err) {
-      setError(err instanceof ApiError ? { message: err.message, status: err.status } : { message: "Could not load the tenant.", status: 0 });
-    }
-  }, [renterId, can]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
 
   const loadKyc = useCallback(() => kycApi.forRenter(renterId), [renterId]);
 
@@ -761,15 +737,11 @@ export function RenterDetailPage() {
 }
 
 function AddTenancyModal({ renter, onClose, onSaved }: { renter: RenterDetail; onClose: () => void; onSaved: () => void }) {
-  const [currency, setCurrency] = useState("UGX");
+  const currency = useAccess().business?.default_currency ?? "UGX";
   const [tenancy, setTenancy] = useState<TenancyDraft>(() => emptyTenancy());
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    tenantApi.getMine().then((t) => setCurrency(t.default_currency)).catch(() => undefined);
-  }, []);
 
   async function save(e: FormEvent) {
     e.preventDefault();

@@ -4,6 +4,7 @@ import { getStoredAdminToken, getStoredToken, onUnauthorized, setStoredAdminToke
 import type { AuthSession, JwtClaims } from "../lib/types";
 import { applyBusinessTheme } from "../lib/brandTheme";
 import { setSiteName } from "../hooks/useDocumentTitle";
+import { clearQueryCache } from "../lib/queryClient";
 
 interface AuthContextValue {
   session: AuthSession | null;
@@ -47,18 +48,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStoredToken(null);
     setStoredAdminToken(null);
     setSession(null);
+    clearQueryCache(); // nothing cached for one account may show for the next
     // Back to the neutral look for the sign-in page.
     applyBusinessTheme(null);
     setSiteName(null);
   }, []);
 
   const loginWithToken = useCallback((token: string) => {
+    clearQueryCache();
     setStoredAdminToken(null);
     setStoredToken(token);
     setSession(sessionFromToken(token));
   }, []);
 
   const startImpersonation = useCallback((token: string) => {
+    clearQueryCache();
     const own = getStoredToken();
     if (own) setStoredAdminToken(own);
     setStoredToken(token);
@@ -66,6 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const stopImpersonation = useCallback(() => {
+    clearQueryCache();
     applyBusinessTheme(null);
     setSiteName(null);
     const own = getStoredAdminToken();

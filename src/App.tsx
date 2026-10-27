@@ -1,44 +1,62 @@
+import { lazy, Suspense, type ComponentType } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { queryClient } from "./lib/queryClient";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
 import { ToastProvider } from "./components/ToastContext";
 import { ProtectedRoute, RequirePlatformAdmin } from "./components/ProtectedRoute";
+import { PageLoading } from "./components/PageLoading";
 import { AppShell } from "./components/layout/AppShell";
 import { PlatformShell } from "./components/layout/PlatformShell";
-import {
-  PlatformAuditPage,
-  PlatformBusinessDetailPage,
-  PlatformBusinessesPage,
-  PlatformDashboardPage,
-  PlatformUsersPage,
-} from "./pages/platform/PlatformPages";
 import { LoginPage } from "./pages/auth/LoginPage";
 import { SignupPage } from "./pages/auth/SignupPage";
 import { VerifyEmailPage } from "./pages/auth/VerifyEmailPage";
 import { ForgotPasswordPage } from "./pages/auth/ForgotPasswordPage";
 import { ResetPasswordPage } from "./pages/auth/ResetPasswordPage";
-import { ReceiptsPage } from "./pages/ReceiptsPage";
-import { NewReceiptPage } from "./pages/NewReceiptPage";
-import { ReceiptDetailPage } from "./pages/ReceiptDetailPage";
-import { CustomersPage } from "./pages/CustomersPage";
-import { ProfilePage } from "./pages/ProfilePage";
-import { AdminPortalPage } from "./pages/AdminPortalPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
-import { DashboardPage } from "./pages/DashboardPage";
-import { InvoicesPage } from "./pages/InvoicesPage";
-import { InvoiceDetailPage } from "./pages/InvoiceDetailPage";
-import { QuotationsPage } from "./pages/QuotationsPage";
-import { QuotationDetailPage } from "./pages/QuotationDetailPage";
-import { EditInvoicePage, EditQuotationPage, NewInvoicePage, NewQuotationPage } from "./pages/DocumentFormPages";
-import { NewSchedulePage, ScheduleDetailPage, SchedulesPage } from "./pages/SchedulePages";
-import { RemindersPage } from "./pages/RemindersPage";
-import { AuditLogPage } from "./pages/AuditLogPage";
 import { AccessProvider } from "./auth/AccessContext";
 import { RequirePerm } from "./components/RequirePerm";
-import { PropertiesPage, PropertyDetailPage } from "./pages/PropertyPages";
-import { TeamMemberPage, TeamPage } from "./pages/TeamPages";
-import { NewRenterPage, RenterDetailPage, RentersPage } from "./pages/RenterPages";
-import { CustomerDetailPage } from "./pages/CustomerDetailPage";
-import { KycProfilePage, KycReviewPage } from "./pages/KycReviewPage";
+
+// Pages load on first visit, so the first download is just the shell and the page you open.
+function lazyPage<M extends Record<string, unknown>>(load: () => Promise<M>, name: keyof M) {
+  return lazy(async () => ({ default: (await load())[name] as ComponentType }));
+}
+
+const PlatformAuditPage = lazyPage(() => import("./pages/platform/PlatformPages"), "PlatformAuditPage");
+const PlatformBusinessDetailPage = lazyPage(() => import("./pages/platform/PlatformPages"), "PlatformBusinessDetailPage");
+const PlatformBusinessesPage = lazyPage(() => import("./pages/platform/PlatformPages"), "PlatformBusinessesPage");
+const PlatformDashboardPage = lazyPage(() => import("./pages/platform/PlatformPages"), "PlatformDashboardPage");
+const PlatformUsersPage = lazyPage(() => import("./pages/platform/PlatformPages"), "PlatformUsersPage");
+const ReceiptsPage = lazyPage(() => import("./pages/ReceiptsPage"), "ReceiptsPage");
+const NewReceiptPage = lazyPage(() => import("./pages/NewReceiptPage"), "NewReceiptPage");
+const ReceiptDetailPage = lazyPage(() => import("./pages/ReceiptDetailPage"), "ReceiptDetailPage");
+const CustomersPage = lazyPage(() => import("./pages/CustomersPage"), "CustomersPage");
+const ProfilePage = lazyPage(() => import("./pages/ProfilePage"), "ProfilePage");
+const AdminPortalPage = lazyPage(() => import("./pages/AdminPortalPage"), "AdminPortalPage");
+const DashboardPage = lazyPage(() => import("./pages/DashboardPage"), "DashboardPage");
+const InvoicesPage = lazyPage(() => import("./pages/InvoicesPage"), "InvoicesPage");
+const InvoiceDetailPage = lazyPage(() => import("./pages/InvoiceDetailPage"), "InvoiceDetailPage");
+const QuotationsPage = lazyPage(() => import("./pages/QuotationsPage"), "QuotationsPage");
+const QuotationDetailPage = lazyPage(() => import("./pages/QuotationDetailPage"), "QuotationDetailPage");
+const EditInvoicePage = lazyPage(() => import("./pages/DocumentFormPages"), "EditInvoicePage");
+const EditQuotationPage = lazyPage(() => import("./pages/DocumentFormPages"), "EditQuotationPage");
+const NewInvoicePage = lazyPage(() => import("./pages/DocumentFormPages"), "NewInvoicePage");
+const NewQuotationPage = lazyPage(() => import("./pages/DocumentFormPages"), "NewQuotationPage");
+const NewSchedulePage = lazyPage(() => import("./pages/SchedulePages"), "NewSchedulePage");
+const ScheduleDetailPage = lazyPage(() => import("./pages/SchedulePages"), "ScheduleDetailPage");
+const SchedulesPage = lazyPage(() => import("./pages/SchedulePages"), "SchedulesPage");
+const RemindersPage = lazyPage(() => import("./pages/RemindersPage"), "RemindersPage");
+const AuditLogPage = lazyPage(() => import("./pages/AuditLogPage"), "AuditLogPage");
+const PropertiesPage = lazyPage(() => import("./pages/PropertyPages"), "PropertiesPage");
+const PropertyDetailPage = lazyPage(() => import("./pages/PropertyPages"), "PropertyDetailPage");
+const TeamMemberPage = lazyPage(() => import("./pages/TeamPages"), "TeamMemberPage");
+const TeamPage = lazyPage(() => import("./pages/TeamPages"), "TeamPage");
+const NewRenterPage = lazyPage(() => import("./pages/RenterPages"), "NewRenterPage");
+const RenterDetailPage = lazyPage(() => import("./pages/RenterPages"), "RenterDetailPage");
+const RentersPage = lazyPage(() => import("./pages/RenterPages"), "RentersPage");
+const CustomerDetailPage = lazyPage(() => import("./pages/CustomerDetailPage"), "CustomerDetailPage");
+const KycProfilePage = lazyPage(() => import("./pages/KycReviewPage"), "KycProfilePage");
+const KycReviewPage = lazyPage(() => import("./pages/KycReviewPage"), "KycReviewPage");
 
 function RootRedirect() {
   const { session } = useAuth();
@@ -110,10 +128,14 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <ToastProvider>
-        <AppRoutes />
-      </ToastProvider>
-    </AuthProvider>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <ToastProvider>
+          <Suspense fallback={<PageLoading />}>
+            <AppRoutes />
+          </Suspense>
+        </ToastProvider>
+      </AuthProvider>
+    </QueryClientProvider>
   );
 }

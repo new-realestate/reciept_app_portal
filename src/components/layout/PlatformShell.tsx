@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { Building2, ChevronsUpDown, LayoutDashboard, LogOut, Menu, Monitor, Moon, ScrollText, ShieldCheck, Sun, Users } from "lucide-react";
 import { useAuth } from "../../auth/AuthContext";
+import { PageLoading } from "../PageLoading";
 import { useMediaQuery } from "../../hooks/useMediaQuery";
 import { applyTheme, getStoredTheme, resolvedTheme, type ThemePreference } from "../../lib/theme";
 import { applyBusinessTheme } from "../../lib/brandTheme";
@@ -128,7 +129,10 @@ export function PlatformShell() {
         </div>
 
         <main id="main-content" className="app-content" tabIndex={-1}>
-          <Outlet />
+          {/* The shell stays on screen while a page's code loads. */}
+          <Suspense fallback={<PageLoading />}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
     </div>

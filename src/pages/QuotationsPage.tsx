@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ClipboardList, Download, Eye, FilterX, MoreHorizontal, Plus, Search, SearchX } from "lucide-react";
 import { quotationsApi } from "../api/documents";
@@ -12,14 +12,14 @@ import { DropdownMenu } from "../components/ui/DropdownMenu";
 import { QuotationStatusBadge } from "../components/ui/StatusBadge";
 import { useToast } from "../components/ToastContext";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import { useApiQuery } from "../hooks/useApiQuery";
+import { qk } from "../lib/queryKeys";
 
 const PAGE_SIZE = 15;
 
 export function QuotationsPage() {
   useDocumentTitle("Quotations");
   const { notify } = useToast();
-  const [items, setItems] = useState<Quotation[]>([]);
-  const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
   const [limit, setLimit] = useState(PAGE_SIZE);
   const changeLimit = (n: number) => {
@@ -28,31 +28,14 @@ export function QuotationsPage() {
   };
   const [filters, setFilters] = useState<InvoiceListFilters>({});
   const [search, setSearch] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const requestId = useRef(0);
   const hasFilters = Object.values(filters).some((v) => v !== undefined && v !== "") || search !== "";
 
-  const load = useCallback(async () => {
-    const id = ++requestId.current;
-    setIsLoading(true);
-    setError(null);
-    try {
-      const page = await quotationsApi.list({ ...filters, limit, offset });
-      if (id === requestId.current) {
-        setItems(page.items);
-        setTotal(page.total);
-      }
-    } catch (err) {
-      if (id === requestId.current) setError(err instanceof ApiError ? err.message : "Could not load quotations.");
-    } finally {
-      if (id === requestId.current) setIsLoading(false);
-    }
-  }, [filters, offset, limit]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  const { data: page, isLoading, error, reload } = useApiQuery(qk.quotations({ filters, limit, offset }), () => quotationsApi.list({ ...filters, limit, offset }), {
+    fallbackError: "Could not load quotations.",
+    keepPrevious: true,
+  });
+  const items = page?.items ?? [];
+  const total = page?.total ?? 0;
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -168,7 +151,7 @@ export function QuotationsPage() {
           rowKey={(q) => q.id}
           isLoading={isLoading}
           error={error}
-          onRetry={load}
+          onRetry={reload}
           itemLabel="quotations"
           serverPaging={{ total, offset, limit, onOffsetChange: setOffset, onLimitChange: changeLimit }}
           empty={

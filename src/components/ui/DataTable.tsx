@@ -1,4 +1,5 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type MouseEvent, type ReactNode, type SyntheticEvent } from "react";
+import { prefetchPath } from "../../lib/detailQueries";
 import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react";
 import { Button, ErrorState, Skeleton } from "./ui";
 
@@ -14,6 +15,33 @@ export interface Column<T> {
 }
 
 type SortState = { key: string; direction: "asc" | "desc" } | null;
+
+// Clicks on these keep their own behaviour instead of opening the row.
+const INTERACTIVE = "a, button, input, select, textarea, label, summary, [role='menu'], [role='menuitem'], [role='button']";
+
+/**
+ * Makes the whole row open the row's primary link (the `.table-link` a page puts in a cell).
+ * The link itself stays the keyboard/screen-reader target; this only widens the mouse target.
+ */
+/** Starts loading the row's page while the pointer is over it, so the click opens faster. */
+function prefetchRow(e: SyntheticEvent<HTMLTableRowElement>) {
+  const link = e.currentTarget.querySelector<HTMLAnchorElement>("a.table-link[href]");
+  if (link) prefetchPath(link.pathname);
+}
+
+function openRowLink(e: MouseEvent<HTMLTableRowElement>) {
+  if (e.button > 1) return; // right-click: leave the context menu alone
+  const target = e.target as HTMLElement;
+  if (target.closest(INTERACTIVE)) return;
+  if (window.getSelection()?.toString()) return; // the user is selecting text to copy
+  const link = e.currentTarget.querySelector<HTMLAnchorElement>("a.table-link[href]");
+  if (!link) return;
+  if (e.button === 1 || e.ctrlKey || e.metaKey) {
+    window.open(link.href, "_blank", "noopener");
+  } else {
+    link.click(); // goes through the router link, so it navigates in-app
+  }
+}
 
 export function DataTable<T>({
   caption,
@@ -149,7 +177,7 @@ export function DataTable<T>({
                 </tr>
               ))
               : visible.map((row) => (
-                <tr key={rowKey(row)}>
+                <tr key={rowKey(row)} onClick={openRowLink} onAuxClick={openRowLink} onMouseEnter={prefetchRow} onFocus={prefetchRow}>
                   {columns.map((c) => (
                     <td
                       key={c.key}

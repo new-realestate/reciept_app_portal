@@ -17,6 +17,8 @@ import { KycPanel } from "../components/kyc/KycPanel";
 import { NoAccess } from "../components/RequirePerm";
 import { useToast } from "../components/ToastContext";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import { useApiQuery } from "../hooks/useApiQuery";
+import { qk } from "../lib/queryKeys";
 
 function StatusCell({ m }: { m: TeamMember }) {
   return m.is_active ? <Badge tone="success">Active</Badge> : <Badge tone="neutral">Deactivated</Badge>;
@@ -50,26 +52,9 @@ const COLUMNS: Column<TeamMember>[] = [
 export function TeamPage() {
   useDocumentTitle("Team");
   const { notify } = useToast();
-  const [members, setMembers] = useState<TeamMember[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
-
-  const load = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      setMembers(await teamApi.list());
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not load your team.");
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  const { data, isLoading, error, reload: load } = useApiQuery(qk.team(), teamApi.list, { fallbackError: "Could not load your team." });
+  const members: TeamMember[] = data ?? [];
 
   return (
     <div>

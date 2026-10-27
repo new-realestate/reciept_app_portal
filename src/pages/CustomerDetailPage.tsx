@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Archive, ArchiveRestore, ClipboardList, FileText, Home, ReceiptText } from "lucide-react";
 import { customersApi } from "../api/customers";
@@ -26,6 +26,10 @@ import { ConfirmDialog, Modal } from "../components/ui/Modal";
 import { NoAccess } from "../components/RequirePerm";
 import { useToast } from "../components/ToastContext";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import { useApiQuery } from "../hooks/useApiQuery";
+import { useQueryClient } from "@tanstack/react-query";
+import { qk } from "../lib/queryKeys";
+import { detailQueries } from "../lib/detailQueries";
 
 const DOC_PATHS = { receipt: "/receipts", invoice: "/invoices", quotation: "/quotations" } as const;
 
@@ -86,26 +90,22 @@ export function CustomerDetailPage() {
   const { customerId = "" } = useParams();
   const { can } = useAccess();
   const { notify } = useToast();
-  const [docs, setDocs] = useState<CustomerDocuments | null>(null);
-  const [error, setError] = useState<{ message: string; status: number } | null>(null);
+  const queryClient = useQueryClient();
+  const customerDef = detailQueries.customer(customerId);
+  const query = useApiQuery(customerDef.queryKey, customerDef.queryFn, {
+    fallbackError: "Could not load the customer.",
+  });
+  const docs: CustomerDocuments | null = query.data ?? null;
+  const error = query.error ? { message: query.error, status: query.errorStatus ?? 0 } : null;
+  const load = query.reload;
+  const setDocs = (update: (d: CustomerDocuments | undefined) => CustomerDocuments | undefined) =>
+    queryClient.setQueryData(qk.customerDocuments(customerId), update);
   const [editing, setEditing] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const [busy, setBusy] = useState(false);
   const customer = docs?.customer;
   useDocumentTitle(customer?.name ?? "Customer");
 
-  const load = useCallback(async () => {
-    setError(null);
-    try {
-      setDocs(await customersApi.documents(customerId));
-    } catch (err) {
-      setError(err instanceof ApiError ? { message: err.message, status: err.status } : { message: "Could not load the customer.", status: 0 });
-    }
-  }, [customerId]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
 
   if (error?.status === 404) return <NoAccess message="This customer doesn't exist in your business." />;
   if (error) return <ErrorState message={error.message} onRetry={load} />;

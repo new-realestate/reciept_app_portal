@@ -1,13 +1,14 @@
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { AlertTriangle, ArrowRight, CalendarClock, CheckCircle2, ClipboardList, FileText, HandCoins, Hourglass, ReceiptText } from "lucide-react";
 import { dashboardApi, paymentsApi } from "../api/documents";
-import { ApiError } from "../lib/apiClient";
-import type { CurrencyTotals, DashboardSummary, UpcomingPayment } from "../lib/documentTypes";
+import type { CurrencyTotals, UpcomingPayment } from "../lib/documentTypes";
 import { formatDateTime, formatDay, formatMoney } from "../lib/format";
 import { Card, CardHeader, EmptyState, ErrorState, PageHeader, Select, Skeleton, Field, ButtonLink } from "../components/ui/ui";
 import { DueStatusBadge } from "../components/ui/StatusBadge";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import { useApiQuery } from "../hooks/useApiQuery";
+import { qk } from "../lib/queryKeys";
 import { activityLabel, entityLink } from "../lib/activity";
 import { dueText } from "./RemindersPage";
 import type { LucideIcon } from "lucide-react";
@@ -35,35 +36,21 @@ export function DashboardPage() {
   useDocumentTitle("Dashboard");
   const [period, setPeriod] = useState("this_month");
   const [currency, setCurrency] = useState<string | null>(null);
-  const [summary, setSummary] = useState<DashboardSummary | null>(null);
-  const [upcoming, setUpcoming] = useState<UpcomingPayment[]>([]);
-  const [overdue, setOverdue] = useState<UpcomingPayment[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [s, u, o] = await Promise.all([
+  const { data, isLoading: loading, error, reload: load } = useApiQuery(
+    qk.dashboard(period),
+    async () => {
+      const [summary, upcoming, overdue] = await Promise.all([
         dashboardApi.summary(period),
         paymentsApi.upcoming({ status: "upcoming", window_days: 30, limit: 6 }),
         paymentsApi.overdue({ limit: 6 }),
       ]);
-      setSummary(s);
-      setUpcoming(u.items);
-      setOverdue(o.items);
-      setCurrency((c) => c ?? s.default_currency);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not load the dashboard.");
-    } finally {
-      setLoading(false);
-    }
-  }, [period]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+      return { summary, upcoming: upcoming.items, overdue: overdue.items };
+    },
+    { fallbackError: "Could not load the dashboard.", keepPrevious: true },
+  );
+  const summary = data?.summary ?? null;
+  const upcoming = data?.upcoming ?? [];
+  const overdue = data?.overdue ?? [];
 
   const currencies = summary ? Object.keys(summary.by_currency) : [];
   const cur = currency && summary?.by_currency[currency] ? currency : summary?.default_currency ?? "";

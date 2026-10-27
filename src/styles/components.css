@@ -473,6 +473,11 @@ textarea.input {
   background: var(--surface-alt);
 }
 
+/* Rows with a primary link open it when clicked anywhere (see DataTable). */
+.data-table tbody tr:has(a.table-link[href]) {
+  cursor: pointer;
+}
+
 .data-table .cell-end,
 .data-table th.cell-end {
   text-align: right;

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Archive, Building, Home, Plus, Search, SearchX, UserMinus, UserPlus } from "lucide-react";
 import { propertiesApi } from "../api/properties";
@@ -38,6 +38,10 @@ import { KycStatusBadge, PropertyStatusBadge, RenterStatusBadge } from "../compo
 import { NoAccess } from "../components/RequirePerm";
 import { useToast } from "../components/ToastContext";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import { useApiQuery } from "../hooks/useApiQuery";
+import { useQueryClient } from "@tanstack/react-query";
+import { qk } from "../lib/queryKeys";
+import { detailQueries } from "../lib/detailQueries";
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -70,32 +74,16 @@ export function PropertiesPage() {
   useDocumentTitle("Properties");
   const { isManager } = useAccess();
   const { notify } = useToast();
-  const [rows, setRows] = useState<Property[]>([]);
   const [query, setQuery] = useState("");
   const [activeQuery, setActiveQuery] = useState("");
   const [status, setStatus] = useState("active");
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-  const requestId = useRef(0);
-
-  const load = useCallback(async () => {
-    const id = ++requestId.current;
-    setIsLoading(true);
-    setError(null);
-    try {
-      const items = await propertiesApi.list({ q: activeQuery || undefined, status: status || undefined });
-      if (id === requestId.current) setRows(items);
-    } catch (err) {
-      if (id === requestId.current) setError(err instanceof ApiError ? err.message : "Could not load properties.");
-    } finally {
-      if (id === requestId.current) setIsLoading(false);
-    }
-  }, [activeQuery, status]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  const { data, isLoading, error, reload: load } = useApiQuery(
+    qk.properties({ q: activeQuery, status }),
+    () => propertiesApi.list({ q: activeQuery || undefined, status: status || undefined }),
+    { fallbackError: "Could not load properties.", keepPrevious: true },
+  );
+  const rows: Property[] = data ?? [];
 
   useEffect(() => {
     const timer = window.setTimeout(() => setActiveQuery(query.trim()), SEARCH_DEBOUNCE_MS);
@@ -257,9 +245,25 @@ export function PropertyDetailPage() {
   const { propertyId = "" } = useParams();
   const { isManager, can } = useAccess();
   const { notify } = useToast();
-  const [property, setProperty] = useState<PropertyDetail | null>(null);
-  const [renters, setRenters] = useState<Renter[]>([]);
-  const [error, setError] = useState<{ message: string; status: number } | null>(null);
+  const queryClient = useQueryClient();
+  const propertyDef = detailQueries.property(propertyId);
+  const propertyQuery = useApiQuery(propertyDef.queryKey, propertyDef.queryFn, {
+    fallbackError: "Could not load the property.",
+  });
+  const rentersQuery = useApiQuery(
+    qk.renters({ property_id: propertyId }),
+    () => rentersApi.listPage({ property_id: propertyId }, 100, 0).then((p) => p.items),
+    { enabled: can("renters.manage") },
+  );
+  const property = propertyQuery.data ?? null;
+  const renters: Renter[] = rentersQuery.data ?? [];
+  const error = propertyQuery.error ? { message: propertyQuery.error, status: propertyQuery.errorStatus ?? 0 } : null;
+  // Actions return the updated property; show it at once (a background refetch follows).
+  const setProperty = (p: PropertyDetail) => queryClient.setQueryData(qk.property(propertyId), p);
+  const load = () => {
+    void propertyQuery.reload();
+    void rentersQuery.reload();
+  };
   const [editing, setEditing] = useState(false);
   const [addingUnit, setAddingUnit] = useState(false);
   const [assigning, setAssigning] = useState(false);
@@ -268,21 +272,6 @@ export function PropertyDetailPage() {
   const [busy, setBusy] = useState(false);
   useDocumentTitle(property?.name ?? "Property");
 
-  const load = useCallback(async () => {
-    setError(null);
-    try {
-      setProperty(await propertiesApi.get(propertyId));
-      if (can("renters.manage")) {
-        rentersApi.listPage({ property_id: propertyId }, 100, 0).then((p) => setRenters(p.items)).catch(() => setRenters([]));
-      }
-    } catch (err) {
-      setError(err instanceof ApiError ? { message: err.message, status: err.status } : { message: "Could not load the property.", status: 0 });
-    }
-  }, [propertyId, can]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
 
   if (error?.status === 404) return <NoAccess message="This property doesn't exist or isn't assigned to you." />;
   if (error) return <ErrorState message={error.message} onRetry={load} />;

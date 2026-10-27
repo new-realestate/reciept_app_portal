@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Home, Plus, Search, SearchX, Users } from "lucide-react";
 import { customersApi } from "../api/customers";
@@ -10,6 +10,8 @@ import { DataTable, type Column } from "../components/ui/DataTable";
 import { Modal } from "../components/ui/Modal";
 import { useToast } from "../components/ToastContext";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import { useApiQuery } from "../hooks/useApiQuery";
+import { qk } from "../lib/queryKeys";
 
 const SEARCH_DEBOUNCE_MS = 300;
 const PAGE_SIZE = 15;
@@ -44,8 +46,6 @@ export function CustomersPage() {
   const { notify } = useToast();
   const { can } = useAccess();
   const navigate = useNavigate();
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
   const [limit, setLimit] = useState(PAGE_SIZE);
   const changeLimit = (n: number) => {
@@ -56,34 +56,14 @@ export function CustomersPage() {
   const [activeQuery, setActiveQuery] = useState("");
   const [kind, setKind] = useState<KindFilter>("");
   const [status, setStatus] = useState<"active" | "archived" | "">("active");
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
-  const requestId = useRef(0);
 
-  const load = useCallback(async (q: string, from: number) => {
-    const id = ++requestId.current;
-    setIsLoading(true);
-    setError(null);
-    try {
-      const page = await customersApi.listPage(q || undefined, limit, from, {
-        status: status || undefined,
-        is_renter: kind === "" ? undefined : kind === "tenants",
-      });
-      if (id === requestId.current) {
-        setCustomers(page.items);
-        setTotal(page.total);
-      }
-    } catch (err) {
-      if (id === requestId.current) setError(err instanceof ApiError ? err.message : "Could not load customers.");
-    } finally {
-      if (id === requestId.current) setIsLoading(false);
-    }
-  }, [limit, kind, status]);
-
-  useEffect(() => {
-    load(activeQuery, offset);
-  }, [activeQuery, offset, load]);
+  const { data: page, isLoading, error, reload } = useApiQuery(qk.customers({ q: activeQuery, limit, offset, kind, status }), () => customersApi.listPage(activeQuery || undefined, limit, offset, { status: status || undefined, is_renter: kind === "" ? undefined : kind === "tenants" }), {
+    fallbackError: "Could not load customers.",
+    keepPrevious: true,
+  });
+  const customers = page?.items ?? [];
+  const total = page?.total ?? 0;
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -146,7 +126,7 @@ export function CustomersPage() {
           rowKey={(c) => c.id}
           isLoading={isLoading}
           error={error}
-          onRetry={() => load(activeQuery, offset)}
+          onRetry={() => reload()}
           itemLabel="customers"
           serverPaging={{ total, offset, limit, onOffsetChange: setOffset, onLimitChange: changeLimit }}
           empty={
@@ -186,7 +166,7 @@ export function CustomersPage() {
           onCreated={() => {
             setShowModal(false);
             notify("Customer added.", "success");
-            load(activeQuery, offset);
+            reload();
           }}
         />
       )}

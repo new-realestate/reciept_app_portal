@@ -129,7 +129,7 @@
   font-weight: 600;
   font-size: var(--text-sm);
 }
-.brand-preview-link { color: var(--p-brand); text-decoration: underline; font-size: var(--text-sm); }
+.brand-preview-link { color: var(--p-brand); font-size: var(--text-sm); font-weight: 600; }
 .brand-preview-badge {
   padding: 2px var(--space-3);
   border-radius: var(--radius-full);

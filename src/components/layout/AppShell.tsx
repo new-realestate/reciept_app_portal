@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   BellRing,
@@ -25,6 +25,7 @@ import {
   Lock,
 } from "lucide-react";
 import { useAuth } from "../../auth/AuthContext";
+import { PageLoading } from "../PageLoading";
 import { useAccess } from "../../auth/AccessContext";
 import { permissions, ROLE_LABELS } from "../../auth/permissions";
 import { useMediaQuery } from "../../hooks/useMediaQuery";
@@ -263,7 +264,10 @@ export function AppShell() {
         </div>
 
         <main id="main-content" className="app-content" tabIndex={-1}>
-          <Outlet />
+          {/* The shell stays on screen while a page's code loads. */}
+          <Suspense fallback={<PageLoading />}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
     </div>

@@ -1,7 +1,9 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, type ReactNode } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Outlet } from "react-router-dom";
 import { usersApi } from "../api/users";
 import { ApiError } from "../lib/apiClient";
+import { qk } from "../lib/queryKeys";
 import { applyBusinessTheme } from "../lib/brandTheme";
 import type { BusinessBranding, Me, Permission } from "../lib/types";
 import { setSiteName } from "../hooks/useDocumentTitle";
@@ -21,45 +23,41 @@ interface AccessContextValue {
 const AccessContext = createContext<AccessContextValue | undefined>(undefined);
 
 /**
- * Loads the signed-in member's permissions and assigned properties once per session.
+ * Loads the signed-in member's permissions and assigned properties (cached per session token,
+ * re-checked in the background when the window regains focus).
  * Used only to decide what to show: the API enforces every rule itself.
  */
 export function AccessProvider({ children }: { children?: ReactNode }) {
   const { session } = useAuth();
-  const [me, setMe] = useState<Me | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setError(null);
-    try {
-      const loaded = await usersApi.me();
-      setMe(loaded);
-      // Everyone in the business sees its name and accent colour.
-      applyBusinessTheme(loaded.business?.brand_color);
-      setSiteName(loaded.business?.name);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not load your account.");
-    }
-  }, []);
-
+  const queryClient = useQueryClient();
   const token = session?.token;
+  const query = useQuery({ queryKey: qk.me(token), queryFn: usersApi.me, enabled: Boolean(token) });
+  const me = query.data ?? null;
+
   useEffect(() => {
-    setMe(null);
-    if (token) load();
-  }, [token, load]);
+    if (!me) return;
+    // Everyone in the business sees its name and accent colour.
+    applyBusinessTheme(me.business?.brand_color);
+    setSiteName(me.business?.name);
+  }, [me]);
+
+  const refresh = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: qk.me(token) });
+  }, [queryClient, token]);
 
   const value = useMemo<AccessContextValue | undefined>(
     () =>
       me
-        ? { me, business: me.business, isManager: me.is_manager, can: (perm: Permission) => hasPermission(me, perm), refresh: load }
+        ? { me, business: me.business, isManager: me.is_manager, can: (perm: Permission) => hasPermission(me, perm), refresh }
         : undefined,
-    [me, load],
+    [me, refresh],
   );
 
-  if (error) {
+  if (query.error && !me) {
+    const message = query.error instanceof ApiError ? query.error.message : "Could not load your account.";
     return (
       <div className="full-page-center">
-        <ErrorState title="Couldn't load your account" message={error} onRetry={load} />
+        <ErrorState title="Couldn't load your account" message={message} onRetry={() => query.refetch()} />
       </div>
     );
   }

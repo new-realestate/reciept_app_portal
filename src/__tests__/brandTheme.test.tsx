@@ -36,7 +36,7 @@ describe("business accent colour", () => {
 describe("branded shell", () => {
   it("shows the business name and logo instead of the product name", async () => {
     const me = makeMe("staff", {
-      business: { id: "t1", name: "Palm Estates", logo_url: "https://example.com/logo.png", brand_color: "#1f7a5c" },
+      business: { id: "t1", name: "Palm Estates", logo_url: "https://example.com/logo.png", brand_color: "#1f7a5c", default_currency: "UGX", timezone: "Africa/Kampala" },
     });
     render(renderWithApp(<AppShell />, { me }));
     expect((await screen.findAllByText("Palm Estates")).length).toBeGreaterThan(0);

@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Ban, Copy, Download, ExternalLink, FileQuestion, FileText, MoreHorizontal, Pencil, RefreshCw, Send } from "lucide-react";
 import { notificationsApi, quotationsApi } from "../api/documents";
 import { useAuth } from "../auth/AuthContext";
 import { permissions } from "../auth/permissions";
 import { ApiError } from "../lib/apiClient";
-import type { NotificationEvent, Quotation } from "../lib/documentTypes";
+import type { Quotation } from "../lib/documentTypes";
 import { formatDateTime, formatDay, formatMoney, todayISO } from "../lib/format";
 import type { DeliveryChannel } from "../lib/types";
 import { Alert, Button, ButtonLink, Card, CardHeader, EmptyState, ErrorState, Field, Input, PageHeader, Spinner, Textarea } from "../components/ui/ui";
@@ -15,6 +15,8 @@ import { QuotationStatusBadge } from "../components/ui/StatusBadge";
 import { NotificationList, SendDialog, copyToClipboard } from "../components/documents/DocumentParts";
 import { useToast } from "../components/ToastContext";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import { useApiQuery } from "../hooks/useApiQuery";
+import { detailQueries } from "../lib/detailQueries";
 
 type Dialog = null | "send" | "cancel" | "convert";
 
@@ -23,9 +25,15 @@ export function QuotationDetailPage() {
   const navigate = useNavigate();
   const { session } = useAuth();
   const { notify } = useToast();
-  const [q, setQ] = useState<Quotation | null>(null);
-  const [events, setEvents] = useState<NotificationEvent[]>([]);
-  const [error, setError] = useState<{ message: string; notFound: boolean } | null>(null);
+  const docQuery = detailQueries.quotation(quotationId ?? "");
+  const query = useApiQuery(
+    docQuery.queryKey,
+    docQuery.queryFn,
+    { fallbackError: "Could not load the quotation.", enabled: Boolean(quotationId) },
+  );
+  const q = query.data?.doc ?? null;
+  const events = query.data?.events ?? [];
+  const error = query.error ? { message: query.error, notFound: query.errorStatus === 404 } : null;
   const [dialog, setDialog] = useState<Dialog>(null);
   const [busy, setBusy] = useState(false);
   const [busyEvent, setBusyEvent] = useState<string | null>(null);
@@ -33,21 +41,7 @@ export function QuotationDetailPage() {
 
   useDocumentTitle(q ? `Quotation ${q.number ?? "draft"}` : "Quotation");
 
-  const load = useCallback(async () => {
-    if (!quotationId) return;
-    try {
-      const [quote, ev] = await Promise.all([quotationsApi.get(quotationId), quotationsApi.notifications(quotationId)]);
-      setQ(quote);
-      setEvents(ev);
-      setError(null);
-    } catch (err) {
-      setError({ message: err instanceof ApiError ? err.message : "Could not load the quotation.", notFound: err instanceof ApiError && err.status === 404 });
-    }
-  }, [quotationId]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  const load = query.reload;
 
   async function sendTo(channels: DeliveryChannel[]) {
     if (!q) return;

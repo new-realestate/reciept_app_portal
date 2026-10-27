@@ -65,6 +65,8 @@ export interface BusinessBranding {
   name: string;
   logo_url: string | null;
   brand_color: string | null;
+  default_currency: string;
+  timezone: string;
 }
 
 export type Permission =

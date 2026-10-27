@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { customersApi } from "../../api/customers";
 import { invoicesApi, quotationsApi } from "../../api/documents";
-import { tenantApi } from "../../api/tenant";
+import { useAccess } from "../../auth/AccessContext";
 import { ApiError } from "../../lib/apiClient";
 import type { Invoice, InvoiceDetail, InvoicePayload, Quotation, QuotationPayload } from "../../lib/documentTypes";
 import { centsFromInput, inputFromCents, todayISO } from "../../lib/format";
@@ -35,7 +35,7 @@ export function DocumentForm({ kind, existing }: { kind: Kind; existing?: Invoic
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [customerFailed, setCustomerFailed] = useState(false);
   const [context, setContext] = useState<PropertyContext>({});
-  const [defaultCurrency, setDefaultCurrency] = useState("UGX");
+  const defaultCurrency = useAccess().business?.default_currency ?? "UGX";
   const [customerMode, setCustomerMode] = useState<"existing" | "new">("existing");
   const customerId = customer?.id ?? "";
   const [customerName, setCustomerName] = useState("");
@@ -67,13 +67,6 @@ export function DocumentForm({ kind, existing }: { kind: Kind; existing?: Invoic
   useEffect(() => {
     const customerToLoad = existing?.customer_id ?? presetCustomer;
     if (customerToLoad) customersApi.get(customerToLoad).then(setCustomer).catch(() => setCustomerFailed(true));
-    tenantApi
-      .getMine()
-      .then((t) => {
-        setDefaultCurrency(t.default_currency);
-        setCurrency((c) => c || t.default_currency);
-      })
-      .catch(() => undefined);
   }, [existing, presetCustomer]);
 
   const activeCurrency = currency || defaultCurrency;

@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Download, Eye, FilterX, MoreHorizontal, ReceiptText, Search, SearchX } from "lucide-react";
 import { receiptsApi } from "../api/receipts";
-import { ApiError } from "../lib/apiClient";
 import { formatDate, formatMoney } from "../lib/format";
 import { PAYMENT_METHOD_LABELS, type Receipt, type ReceiptListFilters, type ReceiptStatus } from "../lib/types";
 import { Button, Card, EmptyState, Field, Input, PageHeader, Select } from "../components/ui/ui";
@@ -11,48 +10,31 @@ import { DataTable, type Column } from "../components/ui/DataTable";
 import { DropdownMenu } from "../components/ui/DropdownMenu";
 import { ReceiptStatusBadge } from "../components/ui/StatusBadge";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import { useApiQuery } from "../hooks/useApiQuery";
+import { qk } from "../lib/queryKeys";
 
 const SEARCH_DEBOUNCE_MS = 300;
 const PAGE_SIZE = 15;
 
 export function ReceiptsPage() {
   useDocumentTitle("Receipts");
-  const [receipts, setReceipts] = useState<Receipt[]>([]);
-  const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
   const [limit, setLimit] = useState(PAGE_SIZE);
   const changeLimit = (n: number) => {
     setOffset(0);
     setLimit(n);
   };
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<ReceiptListFilters>({});
   const [payerInput, setPayerInput] = useState("");
-  const requestId = useRef(0);
 
   const hasFilters = Object.values(filters).some((v) => v !== undefined && v !== "");
 
-  const load = useCallback(async (activeFilters: ReceiptListFilters, from: number) => {
-    const id = ++requestId.current;
-    setIsLoading(true);
-    setError(null);
-    try {
-      const page = await receiptsApi.listPage(activeFilters, limit, from);
-      if (id === requestId.current) {
-        setReceipts(page.items);
-        setTotal(page.total);
-      }
-    } catch (err) {
-      if (id === requestId.current) setError(err instanceof ApiError ? err.message : "Could not load receipts.");
-    } finally {
-      if (id === requestId.current) setIsLoading(false);
-    }
-  }, [limit]);
-
-  useEffect(() => {
-    load(filters, offset);
-  }, [filters, offset, load]);
+  const { data: page, isLoading, error, reload } = useApiQuery(qk.receipts({ filters, limit, offset }), () => receiptsApi.listPage(filters, limit, offset), {
+    fallbackError: "Could not load receipts.",
+    keepPrevious: true,
+  });
+  const receipts = page?.items ?? [];
+  const total = page?.total ?? 0;
 
   // Search by payer as the user types, without firing a request per keystroke.
   useEffect(() => {
@@ -186,7 +168,7 @@ export function ReceiptsPage() {
           rowKey={(r) => r.id}
           isLoading={isLoading}
           error={error}
-          onRetry={() => load(filters, offset)}
+          onRetry={() => reload()}
           itemLabel="receipts"
           serverPaging={{ total, offset, limit, onOffsetChange: setOffset, onLimitChange: changeLimit }}
           empty={
