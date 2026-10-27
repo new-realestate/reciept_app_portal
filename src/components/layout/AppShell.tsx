@@ -2,16 +2,19 @@ import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   BellRing,
+  Building,
   Building2,
   CalendarClock,
   ChevronsUpDown,
   ClipboardList,
   FileText,
+  Home,
   LayoutDashboard,
   LogOut,
   ScrollText,
   ShieldCheck,
   Menu,
+  UsersRound,
   Monitor,
   Moon,
   Plus,
@@ -22,6 +25,7 @@ import {
   Lock,
 } from "lucide-react";
 import { useAuth } from "../../auth/AuthContext";
+import { useAccess } from "../../auth/AccessContext";
 import { permissions, ROLE_LABELS } from "../../auth/permissions";
 import { useMediaQuery } from "../../hooks/useMediaQuery";
 import { applyTheme, getStoredTheme, resolvedTheme, type ThemePreference } from "../../lib/theme";
@@ -30,6 +34,8 @@ import { DropdownMenu, type MenuItem } from "../ui/DropdownMenu";
 
 export function AppShell() {
   const { session, logout, stopImpersonation } = useAuth();
+  const { can, isManager, me, business } = useAccess();
+  const businessName = business?.name ?? "Receipt Portal";
   const location = useLocation();
   const navigate = useNavigate();
   const isMobile = useMediaQuery("(max-width: 900px)");
@@ -83,11 +89,13 @@ export function AppShell() {
   ];
 
   const createItems: MenuItem[] = [
-    { label: "Receipt", icon: ReceiptText, to: "/receipts/new" },
-    { label: "Invoice", icon: FileText, to: "/invoices/new" },
-    { label: "Quotation", icon: ClipboardList, to: "/quotations/new" },
-    { label: "Payment schedule", icon: CalendarClock, to: "/schedules/new" },
+    ...(can("receipts.issue") ? [{ label: "Receipt", icon: ReceiptText, to: "/receipts/new" }] : []),
+    ...(can("invoices.issue") ? [{ label: "Invoice", icon: FileText, to: "/invoices/new" }] : []),
+    ...(can("quotations.issue") ? [{ label: "Quotation", icon: ClipboardList, to: "/quotations/new" }] : []),
+    ...(can("invoices.issue") ? [{ label: "Payment schedule", icon: CalendarClock, to: "/schedules/new" }] : []),
+    ...(can("renters.manage") ? [{ label: "Tenant", icon: Home, to: "/tenants/new", separatorBefore: true }] : []),
   ];
+  const navClass = ({ isActive }: { isActive: boolean }) => `nav-link${isActive ? " nav-link--active" : ""}`;
 
   const userItems: MenuItem[] = [
     { label: "My profile", icon: UserRound, to: "/profile" },
@@ -106,27 +114,39 @@ export function AppShell() {
       {menuOpen && <button type="button" className="sidebar-backdrop" aria-label="Close navigation" onClick={() => setMenuOpen(false)} />}
 
       <aside id="sidebar" ref={sidebarRef} className="sidebar" aria-label="Primary" inert={drawerHidden || undefined}>
-        <Link to="/dashboard" className="sidebar-brand">
-          <span className="brand-mark" aria-hidden>
-            <ReceiptText size={18} />
-          </span>
-          Receipt Portal
+        <Link to="/dashboard" className="sidebar-brand" title={businessName}>
+          <BrandMark logoUrl={business?.logo_url} name={businessName} />
+          <span className="brand-name">{businessName}</span>
         </Link>
 
-        <DropdownMenu label="Create new" items={createItems} triggerClassName="btn btn--primary btn--full" block>
-          <Plus size={16} aria-hidden />
-          New…
-        </DropdownMenu>
+        {createItems.length > 0 && (
+          <DropdownMenu label="Create new" items={createItems} triggerClassName="btn btn--primary btn--full" block>
+            <Plus size={16} aria-hidden />
+            New…
+          </DropdownMenu>
+        )}
 
         <nav className="sidebar-nav" aria-label="Main">
           <NavLink to="/dashboard" className={({ isActive }) => `nav-link${isActive ? " nav-link--active" : ""}`}>
             <LayoutDashboard size={18} aria-hidden />
             Dashboard
           </NavLink>
-          <NavLink to="/customers" className={({ isActive }) => `nav-link${isActive ? " nav-link--active" : ""}`}>
-            <Users size={18} aria-hidden />
-            Customers
+          <NavLink to="/properties" className={navClass}>
+            <Building size={18} aria-hidden />
+            Properties
           </NavLink>
+          {can("renters.manage") && (
+            <NavLink to="/tenants" className={navClass}>
+              <Home size={18} aria-hidden />
+              Tenants
+            </NavLink>
+          )}
+          {can("customers.view") && (
+            <NavLink to="/customers" className={navClass}>
+              <Users size={18} aria-hidden />
+              Customers
+            </NavLink>
+          )}
           <Link
             to="/receipts"
             className={`nav-link${receiptsActive ? " nav-link--active" : ""}`}
@@ -155,6 +175,18 @@ export function AppShell() {
           <div className="nav-section-label" id="nav-settings">
             Settings
           </div>
+          {isManager && (
+            <NavLink to="/team" className={navClass}>
+              <UsersRound size={18} aria-hidden />
+              Team
+            </NavLink>
+          )}
+          {(isManager || can("renters.kyc_review")) && (
+            <NavLink to="/kyc" end className={navClass}>
+              <ShieldCheck size={18} aria-hidden />
+              KYC review
+            </NavLink>
+          )}
           <NavLink
             to="/admin"
             aria-describedby={!canAdmin ? "admin-readonly" : undefined}
@@ -171,7 +203,7 @@ export function AppShell() {
               </>
             )}
           </NavLink>
-          {permissions.canManageDocuments(session.role) && (
+          {isManager && (
             <NavLink to="/audit-log" className={({ isActive }) => `nav-link${isActive ? " nav-link--active" : ""}`}>
               <ScrollText size={18} aria-hidden />
               Audit log
@@ -186,11 +218,11 @@ export function AppShell() {
         <div className="sidebar-footer">
           <DropdownMenu label="Account menu" items={userItems} direction="up" align="start" block triggerClassName="user-trigger">
             <span className="user-avatar" aria-hidden>
-              {session.role.charAt(0).toUpperCase()}
+              {(me.full_name || session.role).charAt(0).toUpperCase()}
             </span>
             <span className="user-meta">
-              <span className="user-role">{ROLE_LABELS[session.role]}</span>
-              <span className="user-sub">Account</span>
+              <span className="user-role">{me.full_name}</span>
+              <span className="user-sub">{ROLE_LABELS[session.role]}</span>
             </span>
             <ChevronsUpDown size={16} aria-hidden />
           </DropdownMenu>
@@ -218,11 +250,16 @@ export function AppShell() {
             aria-controls="sidebar"
             onClick={() => setMenuOpen((v) => !v)}
           />
-          <span className="topbar-title">Receipt Portal</span>
-          <DropdownMenu label="Create new" items={createItems} triggerClassName="btn btn--primary btn--sm">
-            <Plus size={16} aria-hidden />
-            New…
-          </DropdownMenu>
+          <span className="topbar-title" title={businessName}>
+            <BrandMark logoUrl={business?.logo_url} name={businessName} small />
+            <span className="brand-name">{businessName}</span>
+          </span>
+          {createItems.length > 0 && (
+            <DropdownMenu label="Create new" items={createItems} triggerClassName="btn btn--primary btn--sm">
+              <Plus size={16} aria-hidden />
+              New…
+            </DropdownMenu>
+          )}
         </div>
 
         <main id="main-content" className="app-content" tabIndex={-1}>
@@ -230,5 +267,18 @@ export function AppShell() {
         </main>
       </div>
     </div>
+  );
+}
+
+/** The business logo, or the default mark tinted with the business colour when there's no logo. */
+function BrandMark({ logoUrl, name, small }: { logoUrl?: string | null; name: string; small?: boolean }) {
+  const [failed, setFailed] = useState(false);
+  if (logoUrl && !failed) {
+    return <img className={`brand-logo${small ? " brand-logo--small" : ""}`} src={logoUrl} alt={`${name} logo`} onError={() => setFailed(true)} />;
+  }
+  return (
+    <span className={`brand-mark${small ? " brand-mark--small" : ""}`} aria-hidden>
+      <ReceiptText size={small ? 15 : 18} />
+    </span>
   );
 }

@@ -6,6 +6,7 @@ import { ApiError } from "../lib/apiClient";
 import { formatDate, formatMoney } from "../lib/format";
 import { PAYMENT_METHOD_LABELS, type Receipt, type ReceiptListFilters, type ReceiptStatus } from "../lib/types";
 import { Button, Card, EmptyState, Field, Input, PageHeader, Select } from "../components/ui/ui";
+import { PropertyFilter } from "../components/documents/PropertyFilter";
 import { DataTable, type Column } from "../components/ui/DataTable";
 import { DropdownMenu } from "../components/ui/DropdownMenu";
 import { ReceiptStatusBadge } from "../components/ui/StatusBadge";
@@ -142,6 +143,7 @@ export function ReceiptsPage() {
               />
             </div>
           </Field>
+          <PropertyFilter id="rc_property" value={filters.property_id ?? ""} onChange={(v) => updateFilter("property_id", v)} />
           <Field label="From" htmlFor="date_from">
             <Input
               id="date_from"

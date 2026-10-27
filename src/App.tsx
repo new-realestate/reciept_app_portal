@@ -32,6 +32,13 @@ import { EditInvoicePage, EditQuotationPage, NewInvoicePage, NewQuotationPage } 
 import { NewSchedulePage, ScheduleDetailPage, SchedulesPage } from "./pages/SchedulePages";
 import { RemindersPage } from "./pages/RemindersPage";
 import { AuditLogPage } from "./pages/AuditLogPage";
+import { AccessProvider } from "./auth/AccessContext";
+import { RequirePerm } from "./components/RequirePerm";
+import { PropertiesPage, PropertyDetailPage } from "./pages/PropertyPages";
+import { TeamMemberPage, TeamPage } from "./pages/TeamPages";
+import { NewRenterPage, RenterDetailPage, RentersPage } from "./pages/RenterPages";
+import { CustomerDetailPage } from "./pages/CustomerDetailPage";
+import { KycProfilePage, KycReviewPage } from "./pages/KycReviewPage";
 
 function RootRedirect() {
   const { session } = useAuth();
@@ -50,27 +57,39 @@ function AppRoutes() {
       <Route path="/reset-password" element={<ResetPasswordPage />} />
 
       <Route element={<ProtectedRoute />}>
-        <Route element={<AppShell />}>
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/invoices" element={<InvoicesPage />} />
-          <Route path="/invoices/new" element={<NewInvoicePage />} />
-          <Route path="/invoices/:invoiceId" element={<InvoiceDetailPage />} />
-          <Route path="/invoices/:invoiceId/edit" element={<EditInvoicePage />} />
-          <Route path="/quotations" element={<QuotationsPage />} />
-          <Route path="/quotations/new" element={<NewQuotationPage />} />
-          <Route path="/quotations/:quotationId" element={<QuotationDetailPage />} />
-          <Route path="/quotations/:quotationId/edit" element={<EditQuotationPage />} />
-          <Route path="/schedules" element={<SchedulesPage />} />
-          <Route path="/schedules/new" element={<NewSchedulePage />} />
-          <Route path="/schedules/:scheduleId" element={<ScheduleDetailPage />} />
-          <Route path="/reminders" element={<RemindersPage />} />
-          <Route path="/receipts" element={<ReceiptsPage />} />
-          <Route path="/receipts/new" element={<NewReceiptPage />} />
-          <Route path="/receipts/:receiptId" element={<ReceiptDetailPage />} />
-          <Route path="/customers" element={<CustomersPage />} />
-          <Route path="/audit-log" element={<AuditLogPage />} />
-          <Route path="/profile" element={<ProfilePage />} />
-          <Route path="/admin" element={<AdminPortalPage />} />
+        <Route element={<AccessProvider />}>
+          <Route element={<AppShell />}>
+            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/properties" element={<PropertiesPage />} />
+            <Route path="/properties/:propertyId" element={<PropertyDetailPage />} />
+            <Route path="/tenants" element={<RequirePerm perm="renters.manage"><RentersPage /></RequirePerm>} />
+            <Route path="/tenants/new" element={<RequirePerm perm="renters.manage"><NewRenterPage /></RequirePerm>} />
+            <Route path="/tenants/:renterId" element={<RequirePerm perm="renters.manage"><RenterDetailPage /></RequirePerm>} />
+            <Route path="/team" element={<RequirePerm managerOnly><TeamPage /></RequirePerm>} />
+            <Route path="/team/:memberId" element={<RequirePerm managerOnly><TeamMemberPage /></RequirePerm>} />
+            <Route path="/kyc" element={<RequirePerm anyOf={["renters.kyc_review"]}><KycReviewPage /></RequirePerm>} />
+            <Route path="/kyc/:profileId" element={<KycProfilePage />} />
+            <Route path="/invoices" element={<InvoicesPage />} />
+            <Route path="/invoices/new" element={<RequirePerm perm="invoices.issue"><NewInvoicePage /></RequirePerm>} />
+            <Route path="/invoices/:invoiceId" element={<InvoiceDetailPage />} />
+            <Route path="/invoices/:invoiceId/edit" element={<EditInvoicePage />} />
+            <Route path="/quotations" element={<QuotationsPage />} />
+            <Route path="/quotations/new" element={<RequirePerm perm="quotations.issue"><NewQuotationPage /></RequirePerm>} />
+            <Route path="/quotations/:quotationId" element={<QuotationDetailPage />} />
+            <Route path="/quotations/:quotationId/edit" element={<EditQuotationPage />} />
+            <Route path="/schedules" element={<SchedulesPage />} />
+            <Route path="/schedules/new" element={<RequirePerm perm="invoices.issue"><NewSchedulePage /></RequirePerm>} />
+            <Route path="/schedules/:scheduleId" element={<ScheduleDetailPage />} />
+            <Route path="/reminders" element={<RemindersPage />} />
+            <Route path="/receipts" element={<ReceiptsPage />} />
+            <Route path="/receipts/new" element={<RequirePerm perm="receipts.issue"><NewReceiptPage /></RequirePerm>} />
+            <Route path="/receipts/:receiptId" element={<ReceiptDetailPage />} />
+            <Route path="/customers" element={<RequirePerm perm="customers.view"><CustomersPage /></RequirePerm>} />
+            <Route path="/customers/:customerId" element={<RequirePerm perm="customers.view"><CustomerDetailPage /></RequirePerm>} />
+            <Route path="/audit-log" element={<RequirePerm managerOnly><AuditLogPage /></RequirePerm>} />
+            <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/admin" element={<AdminPortalPage />} />
+          </Route>
         </Route>
       </Route>
 

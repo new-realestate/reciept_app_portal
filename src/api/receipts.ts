@@ -17,6 +17,8 @@ export const receiptsApi = {
         date_to: filters.date_to,
         amount_cents: filters.amount_cents,
         status: filters.status,
+        customer_id: filters.customer_id,
+        property_id: filters.property_id,
       },
     }),
 
@@ -30,6 +32,8 @@ export const receiptsApi = {
         date_to: filters.date_to,
         amount_cents: filters.amount_cents,
         status: filters.status,
+        customer_id: filters.customer_id,
+        property_id: filters.property_id,
         limit,
         offset,
       },

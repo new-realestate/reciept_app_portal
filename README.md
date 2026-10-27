@@ -25,21 +25,23 @@ src/
 
 ## Roles & permissions
 
-The API issues a JWT with the user's role. The frontend uses it only for UI gating — the API
-is the actual authority:
+After login the portal loads `/users/me` (permission flags and assigned properties) through
+`src/auth/AccessContext.tsx`. Navigation, page guards (`src/components/RequirePerm.tsx`) and
+buttons use it only to decide what to show; the API enforces every rule itself. The full matrix
+is in `reciept_app_api/docs/roles-and-permissions.md`.
 
 | Capability | Owner | Admin | Staff |
 |---|---|---|---|
-| Issue / view / send / resend receipts | ✅ | ✅ | ✅ |
-| Manage customers | ✅ | ✅ | ✅ |
-| Upload own signature | ✅ | ✅ | ✅ |
-| Edit letterhead & bank details, upload logo | ✅ | ✅ | 🔒 read-only |
-| Admin Portal (business settings) | ✅ | ✅ | 🔒 view-only, locked notice shown |
+| Properties | all, manage | all, manage | assigned only, read |
+| Team (add staff, permissions, deactivate) | ✅ | staff only | – |
+| Tenants, tenancies, tenant KYC | ✅ | ✅ | on assigned properties (`renters.manage`) |
+| KYC review | ✅ | ✅ | tenants on assigned properties (`renters.kyc_review`) |
+| Receipts / invoices / quotations | ✅ | ✅ | by permission flag; property-linked ones only for assigned properties |
+| Customers | ✅ | ✅ | by permission flag |
+| Business settings, audit log | ✅ | ✅ | 🔒 read-only settings, no audit log |
 
-Staff still see the Admin Portal nav item and page (so they can see the business info used on
-receipts) but every edit control and the logo upload are disabled with a lock notice — the
-"file access depending on permissions granted" behavior lives in `src/pages/AdminPortalPage.tsx`
-and `src/auth/permissions.ts`.
+Staff still see the Business page (so they can see the details printed on receipts) but every
+edit control is locked.
 
 ## Setup
 
@@ -57,6 +59,13 @@ instance). Point it at `http://localhost:8000` to run against a local backend in
 ```bash
 npm run build
 npm run preview
+```
+
+## Tests
+
+```bash
+npm test        # Vitest + Testing Library (jsdom)
+npm run lint
 ```
 
 ## Known backend requirement: CORS

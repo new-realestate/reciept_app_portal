@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { Plus, Search, SearchX, Users } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { Home, Plus, Search, SearchX, Users } from "lucide-react";
 import { customersApi } from "../api/customers";
+import { useAccess } from "../auth/AccessContext";
 import { ApiError } from "../lib/apiClient";
-import type { Customer } from "../lib/types";
-import { Alert, Button, Card, EmptyState, Field, Input, PageHeader } from "../components/ui/ui";
+import type { Customer, CustomerType } from "../lib/types";
+import { Alert, Badge, Button, Card, EmptyState, Field, Input, PageHeader, Select, Textarea } from "../components/ui/ui";
 import { DataTable, type Column } from "../components/ui/DataTable";
 import { Modal } from "../components/ui/Modal";
 import { useToast } from "../components/ToastContext";
@@ -12,8 +14,27 @@ import { useDocumentTitle } from "../hooks/useDocumentTitle";
 const SEARCH_DEBOUNCE_MS = 300;
 const PAGE_SIZE = 15;
 
+type KindFilter = "" | "tenants" | "others";
+
 const COLUMNS: Column<Customer>[] = [
-  { key: "name", header: "Name", cell: (c) => <strong>{c.name}</strong> },
+  {
+    key: "name",
+    header: "Name",
+    cell: (c) => (
+      <span className="badge-row">
+        <Link className="table-link" to={`/customers/${c.id}`}>
+          {c.name}
+        </Link>
+        {c.renter_id && (
+          <Badge tone="info" icon={Home}>
+            Tenant
+          </Badge>
+        )}
+        {c.status === "archived" && <Badge tone="neutral">Archived</Badge>}
+      </span>
+    ),
+  },
+  { key: "type", header: "Type", cell: (c) => (c.customer_type === "business" ? "Business" : "Individual") },
   { key: "email", header: "Email", cell: (c) => c.email ?? "—" },
   { key: "phone", header: "Phone", cell: (c) => c.phone ?? "—" },
 ];
@@ -21,6 +42,8 @@ const COLUMNS: Column<Customer>[] = [
 export function CustomersPage() {
   useDocumentTitle("Customers");
   const { notify } = useToast();
+  const { can } = useAccess();
+  const navigate = useNavigate();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
@@ -31,6 +54,8 @@ export function CustomersPage() {
   };
   const [query, setQuery] = useState("");
   const [activeQuery, setActiveQuery] = useState("");
+  const [kind, setKind] = useState<KindFilter>("");
+  const [status, setStatus] = useState<"active" | "archived" | "">("active");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
@@ -41,7 +66,10 @@ export function CustomersPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const page = await customersApi.listPage(q || undefined, limit, from);
+      const page = await customersApi.listPage(q || undefined, limit, from, {
+        status: status || undefined,
+        is_renter: kind === "" ? undefined : kind === "tenants",
+      });
       if (id === requestId.current) {
         setCustomers(page.items);
         setTotal(page.total);
@@ -51,7 +79,7 @@ export function CustomersPage() {
     } finally {
       if (id === requestId.current) setIsLoading(false);
     }
-  }, [limit]);
+  }, [limit, kind, status]);
 
   useEffect(() => {
     load(activeQuery, offset);
@@ -65,15 +93,19 @@ export function CustomersPage() {
     return () => window.clearTimeout(timer);
   }, [query]);
 
+  const filtered = Boolean(activeQuery || kind || status !== "active");
+
   return (
     <div>
       <PageHeader
         title="Customers"
-        subtitle="The payers you've issued receipts to."
+        subtitle="Everyone you issue receipts, invoices or quotations to — tenants and non-tenants alike."
         actions={
-          <Button icon={Plus} onClick={() => setShowModal(true)}>
-            Add customer
-          </Button>
+          can("customers.manage") && (
+            <Button icon={Plus} onClick={() => setShowModal(true)}>
+              Add customer
+            </Button>
+          )
         }
       />
 
@@ -91,6 +123,20 @@ export function CustomersPage() {
               />
             </div>
           </Field>
+          <Field label="Show" htmlFor="cust_kind">
+            <Select id="cust_kind" value={kind} onChange={(e) => { setOffset(0); setKind(e.target.value as KindFilter); }}>
+              <option value="">All customers</option>
+              <option value="tenants">Tenants</option>
+              <option value="others">Not tenants</option>
+            </Select>
+          </Field>
+          <Field label="Status" htmlFor="cust_status">
+            <Select id="cust_status" value={status} onChange={(e) => { setOffset(0); setStatus(e.target.value as "active" | "archived" | ""); }}>
+              <option value="active">Active</option>
+              <option value="archived">Archived</option>
+              <option value="">All</option>
+            </Select>
+          </Field>
         </div>
 
         <DataTable
@@ -104,14 +150,21 @@ export function CustomersPage() {
           itemLabel="customers"
           serverPaging={{ total, offset, limit, onOffsetChange: setOffset, onLimitChange: changeLimit }}
           empty={
-            activeQuery ? (
+            filtered ? (
               <EmptyState
                 icon={SearchX}
-                title="No customers match your search"
+                title="No customers match"
                 description="Check the spelling, or try part of an email or phone number."
                 action={
-                  <Button variant="secondary" onClick={() => setQuery("")}>
-                    Clear search
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      setQuery("");
+                      setKind("");
+                      setStatus("active");
+                    }}
+                  >
+                    Clear filters
                   </Button>
                 }
               />
@@ -119,7 +172,7 @@ export function CustomersPage() {
               <EmptyState
                 icon={Users}
                 title="No customers yet"
-                description="Customers are added automatically when you issue them a receipt, or use Add customer above."
+                description="Customers are added automatically when you issue them a document, or use Add customer above."
               />
             )
           }
@@ -129,6 +182,7 @@ export function CustomersPage() {
       {showModal && (
         <AddCustomerModal
           onClose={() => setShowModal(false)}
+          onOpenExisting={(id) => navigate(`/customers/${id}`)}
           onCreated={() => {
             setShowModal(false);
             notify("Customer added.", "success");
@@ -140,16 +194,28 @@ export function CustomersPage() {
   );
 }
 
-function AddCustomerModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+function AddCustomerModal({
+  onClose,
+  onCreated,
+  onOpenExisting,
+}: {
+  onClose: () => void;
+  onCreated: () => void;
+  onOpenExisting: (id: string) => void;
+}) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [type, setType] = useState<CustomerType>("individual");
+  const [billing, setBilling] = useState("");
+  const [taxId, setTaxId] = useState("");
   const [errors, setErrors] = useState<{ name?: string; contact?: string }>({});
   const [formError, setFormError] = useState<string | null>(null);
+  const [matches, setMatches] = useState<Customer[] | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
+  async function submit(e: FormEvent | null, allowDuplicate = false) {
+    e?.preventDefault();
     setFormError(null);
     const next: typeof errors = {};
     if (!name.trim()) next.name = "Name is required.";
@@ -160,20 +226,68 @@ function AddCustomerModal({ onClose, onCreated }: { onClose: () => void; onCreat
 
     setIsSubmitting(true);
     try {
-      await customersApi.create({ name, email: email || undefined, phone: phone || undefined });
+      await customersApi.create({
+        name: name.trim(),
+        email: email.trim() || undefined,
+        phone: phone.trim() || undefined,
+        customer_type: type,
+        billing_address: billing.trim() || undefined,
+        tax_identification_number: taxId.trim() || undefined,
+        allow_duplicate: allowDuplicate || undefined,
+      });
       onCreated();
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : "Could not add the customer.");
+      if (err instanceof ApiError && err.status === 409 && Array.isArray(err.data?.matches)) {
+        setMatches(err.data.matches as Customer[]);
+      } else {
+        setFormError(err instanceof ApiError ? err.message : "Could not add the customer.");
+      }
       setIsSubmitting(false);
     }
   }
 
+  if (matches) {
+    return (
+      <Modal title="This customer may already exist" description="A customer with the same email or phone number is already on file." onClose={onClose}>
+        <div className="stack">
+          <ul className="match-list">
+            {matches.map((m) => (
+              <li key={m.id}>
+                <span>
+                  <strong>{m.name}</strong>
+                  <span className="muted-text"> {[m.email, m.phone].filter(Boolean).join(" · ")}</span>
+                </span>
+                <Button size="sm" variant="secondary" onClick={() => onOpenExisting(m.id)}>
+                  Open
+                </Button>
+              </li>
+            ))}
+          </ul>
+          <div className="modal-footer">
+            <Button variant="secondary" onClick={() => setMatches(null)}>
+              Go back
+            </Button>
+            <Button variant="ghost" isLoading={isSubmitting} onClick={() => submit(null, true)}>
+              They're different — add anyway
+            </Button>
+          </div>
+        </div>
+      </Modal>
+    );
+  }
+
   return (
     <Modal title="Add customer" onClose={onClose}>
-      <form onSubmit={handleSubmit} noValidate className="stack">
+      <form onSubmit={(e) => submit(e)} noValidate className="stack">
         {formError && <Alert tone="error">{formError}</Alert>}
         <Field label="Name" htmlFor="modal_name" required error={errors.name}>
           <Input id="modal_name" autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} />
+        </Field>
+        <Field label="Type" htmlFor="modal_type">
+          <Select id="modal_type" value={type} onChange={(e) => setType(e.target.value as CustomerType)}>
+            <option value="individual">Individual</option>
+            <option value="business">Business</option>
+          </Select>
         </Field>
         <Field label="Email" htmlFor="modal_email" error={errors.contact} hint="Email or phone is required.">
           <Input id="modal_email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -181,6 +295,14 @@ function AddCustomerModal({ onClose, onCreated }: { onClose: () => void; onCreat
         <Field label="Phone" htmlFor="modal_phone" hint="International format, e.g. +256701234567">
           <Input id="modal_phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
         </Field>
+        <Field label="Billing address" htmlFor="modal_billing">
+          <Textarea id="modal_billing" rows={2} value={billing} onChange={(e) => setBilling(e.target.value)} />
+        </Field>
+        {type === "business" && (
+          <Field label="Tax ID" htmlFor="modal_tax">
+            <Input id="modal_tax" value={taxId} onChange={(e) => setTaxId(e.target.value)} />
+          </Field>
+        )}
         <div className="modal-footer">
           <Button variant="secondary" onClick={onClose}>
             Cancel

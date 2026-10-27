@@ -21,6 +21,7 @@
 .sidebar-brand {
   display: flex;
   align-items: center;
+  min-width: 0;
   gap: var(--space-3);
   padding: 0 var(--space-2);
   font-size: var(--text-lg);
@@ -37,11 +38,38 @@
 .brand-mark {
   display: grid;
   place-items: center;
+  flex: none;
   width: 32px;
   height: 32px;
   border-radius: var(--radius-md);
   background: var(--brand);
   color: var(--brand-contrast);
+}
+
+.brand-mark--small {
+  width: 26px;
+  height: 26px;
+}
+
+/* Business logo: kept to the mark's height, any width up to a sensible cap */
+.brand-logo {
+  flex: none;
+  height: 32px;
+  max-width: 96px;
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+}
+
+.brand-logo--small {
+  height: 26px;
+  max-width: 72px;
+}
+
+.brand-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sidebar-nav {
@@ -256,6 +284,10 @@
 
   .topbar-title {
     flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
     font-weight: 700;
   }
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { ChevronDown, Copy, Download, ExternalLink, FileQuestion, Mail, MessageCircle, MessageSquare, MoreHorizontal, Send } from "lucide-react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { receiptsApi } from "../api/receipts";
 import { ApiError } from "../lib/apiClient";
 import { formatDateTime, formatMoney } from "../lib/format";
@@ -193,6 +193,16 @@ export function ReceiptDetailPage() {
               <dt>Balance</dt>
               <dd>{receipt.balance_cents === 0 ? "Nil" : formatMoney(receipt.balance_cents, receipt.currency)}</dd>
             </div>
+            {receipt.property_id && (
+              <div>
+                <dt>Property</dt>
+                <dd>
+                  <Link className="table-link" to={`/properties/${receipt.property_id}`}>
+                    View property
+                  </Link>
+                </dd>
+              </div>
+            )}
           </dl>
         </Card>
 

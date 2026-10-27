@@ -1,4 +1,4 @@
-import type { DeliveryChannel, PaymentMethodType } from "./types";
+import type { DeliveryChannel, PaymentMethodType, PropertyContext } from "./types";
 
 export interface Page<T> {
   items: T[];
@@ -24,7 +24,7 @@ export interface LineItem {
   line_total_cents: number;
 }
 
-export interface CustomerInline {
+export interface CustomerInline extends PropertyContext {
   customer_id?: string;
   customer_name?: string;
   customer_email?: string;
@@ -36,7 +36,7 @@ export interface CustomerInline {
 export type InvoiceStatus = "draft" | "issued" | "cancelled";
 export type InvoiceDisplayStatus = "draft" | "issued" | "partially_paid" | "paid" | "overdue" | "cancelled";
 
-export interface Invoice {
+export interface Invoice extends PropertyContext {
   id: string;
   number: string | null;
   status: InvoiceStatus;
@@ -115,6 +115,7 @@ export interface InvoiceListFilters {
   status?: string;
   q?: string;
   customer_id?: string;
+  property_id?: string;
   date_from?: string;
   date_to?: string;
   limit?: number;
@@ -125,7 +126,7 @@ export interface InvoiceListFilters {
 
 export type QuotationStatus = "draft" | "sent" | "viewed" | "accepted" | "rejected" | "expired" | "cancelled";
 
-export interface Quotation {
+export interface Quotation extends PropertyContext {
   id: string;
   number: string | null;
   status: QuotationStatus;
@@ -196,7 +197,7 @@ export interface Occurrence {
   days_until_due: number;
 }
 
-export interface Schedule {
+export interface Schedule extends PropertyContext {
   id: string;
   customer_id: string;
   customer_name: string | null;

@@ -12,12 +12,20 @@ const ADMIN_TOKEN_STORAGE_KEY = "receipt_portal_admin_token";
 export class ApiError extends Error {
   status: number;
   fieldErrors?: { msg: string; loc: (string | number)[] }[];
+  /** Structured error details the API sent alongside the message (e.g. duplicate-customer matches). */
+  data?: Record<string, unknown>;
 
-  constructor(message: string, status: number, fieldErrors?: { msg: string; loc: (string | number)[] }[]) {
+  constructor(
+    message: string,
+    status: number,
+    fieldErrors?: { msg: string; loc: (string | number)[] }[],
+    data?: Record<string, unknown>,
+  ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.fieldErrors = fieldErrors;
+    this.data = data;
   }
 }
 
@@ -75,9 +83,12 @@ function buildQuery(query?: RequestOptions["query"]): string {
   return qs ? `?${qs}` : "";
 }
 
-function extractMessage(body: ApiErrorBody | undefined, fallback: string): string {
+export function extractMessage(body: ApiErrorBody | undefined, fallback: string): string {
   // The API wraps HTTP errors as { error: { message } }; request-validation errors keep FastAPI's { detail }.
-  if (body?.error?.message) return body.error.message;
+  // Some errors carry details too, as { error: { message: { message, ...details } } }.
+  const wrapped = body?.error?.message;
+  if (wrapped && typeof wrapped === "object") return typeof wrapped.message === "string" ? wrapped.message : fallback;
+  if (wrapped) return wrapped;
   if (!body?.detail) return fallback;
   if (typeof body.detail === "string") return body.detail;
   if (Array.isArray(body.detail) && body.detail.length > 0) {
@@ -128,12 +139,14 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     const body = json as ApiErrorBody | undefined;
     const fieldErrors = Array.isArray(body?.detail) ? body?.detail : undefined;
     const message = extractMessage(body, `Request failed (${response.status})`);
+    const wrapped = body?.error?.message;
+    const data = wrapped && typeof wrapped === "object" ? (wrapped as Record<string, unknown>) : undefined;
 
     if (response.status === 401 && auth) {
       unauthorizedListener?.();
     }
 
-    throw new ApiError(message, response.status, fieldErrors);
+    throw new ApiError(message, response.status, fieldErrors, data);
   }
 
   return json as T;

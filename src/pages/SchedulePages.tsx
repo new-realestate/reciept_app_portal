@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Ban, CalendarClock, FileQuestion, FileText, MoreHorizontal, Pause, Play, Plus, SkipForward } from "lucide-react";
-import { customersApi } from "../api/customers";
 import { schedulesApi } from "../api/documents";
 import { tenantApi } from "../api/tenant";
 import { ApiError } from "../lib/apiClient";
 import type { Frequency, Occurrence, Schedule, ScheduleDetail, SchedulePayload } from "../lib/documentTypes";
 import { centsFromInput, formatDay, formatMoney, todayISO } from "../lib/format";
-import type { Customer } from "../lib/types";
+import type { Customer, PropertyContext } from "../lib/types";
 import {
   Alert, Button, ButtonLink, Card, CardHeader, EmptyState, ErrorState, Field, Input, PageHeader, PrefixedInput, SegmentedControl, Select, Spinner,
 } from "../components/ui/ui";
@@ -16,6 +15,8 @@ import { DataTable, type Column } from "../components/ui/DataTable";
 import { DropdownMenu } from "../components/ui/DropdownMenu";
 import { OccurrenceStatusBadge, ScheduleStatusBadge } from "../components/ui/StatusBadge";
 import { ReminderPolicyEditor } from "../components/documents/ReminderPolicyEditor";
+import { CustomerPicker } from "../components/documents/CustomerPicker";
+import { contextPayload, PropertyContextPicker } from "../components/documents/PropertyContextPicker";
 import { useToast } from "../components/ToastContext";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 
@@ -144,10 +145,10 @@ export function NewSchedulePage() {
   useDocumentTitle("New payment schedule");
   const navigate = useNavigate();
   const { notify } = useToast();
-  const [customers, setCustomers] = useState<Customer[]>([]);
   const [currency, setCurrency] = useState("UGX");
-  const [mode, setMode] = useState<"existing" | "new">("new");
-  const [customerId, setCustomerId] = useState("");
+  const [mode, setMode] = useState<"existing" | "new">("existing");
+  const [customer, setCustomer] = useState<Customer | null>(null);
+  const [context, setContext] = useState<PropertyContext>({});
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -164,13 +165,12 @@ export function NewSchedulePage() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    customersApi.list().then(setCustomers).catch(() => undefined);
     tenantApi.getMine().then((t) => setCurrency(t.default_currency)).catch(() => undefined);
   }, []);
 
   function validate() {
     const next: Record<string, string> = {};
-    if (mode === "existing" && !customerId) next.customer = "Choose a customer.";
+    if (mode === "existing" && !customer) next.customer = "Choose a customer.";
     if (mode === "new") {
       if (!name.trim()) next.name = "Customer name is required.";
       if (!email.trim() && !phone.trim()) next.contact = "Provide an email or phone number.";
@@ -191,7 +191,8 @@ export function NewSchedulePage() {
     setBusy(true);
     try {
       const payload: SchedulePayload = {
-        ...(mode === "existing" ? { customer_id: customerId } : { customer_name: name.trim(), customer_email: email.trim() || undefined, customer_phone: phone.trim() || undefined }),
+        ...contextPayload(context),
+        ...(mode === "existing" ? { customer_id: customer?.id } : { customer_name: name.trim(), customer_email: email.trim() || undefined, customer_phone: phone.trim() || undefined }),
         description: description.trim(),
         reference_label: reference.trim() || undefined,
         amount_cents: centsFromInput(amount),
@@ -221,14 +222,11 @@ export function NewSchedulePage() {
           <Card>
             <CardHeader
               title="Customer"
-              action={<SegmentedControl label="Customer type" value={mode} onChange={setMode} options={[{ value: "new", label: "New customer" }, { value: "existing", label: "Existing customer" }]} />}
+              action={<SegmentedControl label="Customer type" value={mode} onChange={setMode} options={[{ value: "existing", label: "Existing customer" }, { value: "new", label: "New customer" }]} />}
             />
             {mode === "existing" ? (
               <Field label="Customer" htmlFor="sch_customer" required error={errors.customer}>
-                <Select id="sch_customer" value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
-                  <option value="">Choose a customer…</option>
-                  {customers.map((c) => <option key={c.id} value={c.id}>{c.name} {c.email ? `(${c.email})` : c.phone ? `(${c.phone})` : ""}</option>)}
-                </Select>
+                <CustomerPicker id="sch_customer" value={customer} invalid={Boolean(errors.customer)} onChange={(c) => { setCustomer(c); setContext({}); }} />
               </Field>
             ) : (
               <div className="form-grid">
@@ -237,6 +235,11 @@ export function NewSchedulePage() {
                 <Field label="Phone" htmlFor="sch_phone"><Input id="sch_phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} /></Field>
               </div>
             )}
+          </Card>
+
+          <Card>
+            <CardHeader title="Property" description="Optional: link the schedule to a property or tenancy, e.g. for rent." />
+            <PropertyContextPicker customer={mode === "existing" ? customer : null} value={context} onChange={setContext} />
           </Card>
 
           <Card>

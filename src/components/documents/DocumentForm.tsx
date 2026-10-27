@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { customersApi } from "../../api/customers";
 import { invoicesApi, quotationsApi } from "../../api/documents";
 import { tenantApi } from "../../api/tenant";
 import { ApiError } from "../../lib/apiClient";
 import type { Invoice, InvoiceDetail, InvoicePayload, Quotation, QuotationPayload } from "../../lib/documentTypes";
 import { centsFromInput, inputFromCents, todayISO } from "../../lib/format";
-import type { Customer } from "../../lib/types";
-import { Alert, Button, ButtonLink, Card, CardHeader, Field, Input, SegmentedControl, Select, Textarea } from "../ui/ui";
+import type { Customer, PropertyContext } from "../../lib/types";
+import { Alert, Button, ButtonLink, Card, CardHeader, Field, Input, SegmentedControl, Textarea } from "../ui/ui";
 import { useToast } from "../ToastContext";
 import { LineItemsEditor, type DiscountMode } from "./LineItemsEditor";
 import { emptyRow, estimateTotals, rowsFromLineItems, rowsToPayload, type LineRow } from "./lineItems";
+import { CustomerPicker } from "./CustomerPicker";
+import { contextPayload, PropertyContextPicker } from "./PropertyContextPicker";
 
 type Kind = "invoice" | "quotation";
 
@@ -20,6 +22,8 @@ type Kind = "invoice" | "quotation";
  */
 export function DocumentForm({ kind, existing }: { kind: Kind; existing?: Invoice | Quotation }) {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const presetCustomer = existing ? null : params.get("customer");
   const { notify } = useToast();
   const isInvoice = kind === "invoice";
   const base = isInvoice ? "/invoices" : "/quotations";
@@ -28,11 +32,12 @@ export function DocumentForm({ kind, existing }: { kind: Kind; existing?: Invoic
   const inv = isInvoice ? (existing as Invoice | undefined) : undefined;
   const quo = !isInvoice ? (existing as Quotation | undefined) : undefined;
 
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [customersFailed, setCustomersFailed] = useState(false);
+  const [customer, setCustomer] = useState<Customer | null>(null);
+  const [customerFailed, setCustomerFailed] = useState(false);
+  const [context, setContext] = useState<PropertyContext>({});
   const [defaultCurrency, setDefaultCurrency] = useState("UGX");
-  const [customerMode, setCustomerMode] = useState<"existing" | "new">(existing ? "existing" : "new");
-  const [customerId, setCustomerId] = useState(existing?.customer_id ?? "");
+  const [customerMode, setCustomerMode] = useState<"existing" | "new">("existing");
+  const customerId = customer?.id ?? "";
   const [customerName, setCustomerName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
@@ -60,7 +65,8 @@ export function DocumentForm({ kind, existing }: { kind: Kind; existing?: Invoic
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    customersApi.list().then(setCustomers).catch(() => setCustomersFailed(true));
+    const customerToLoad = existing?.customer_id ?? presetCustomer;
+    if (customerToLoad) customersApi.get(customerToLoad).then(setCustomer).catch(() => setCustomerFailed(true));
     tenantApi
       .getMine()
       .then((t) => {
@@ -68,7 +74,7 @@ export function DocumentForm({ kind, existing }: { kind: Kind; existing?: Invoic
         setCurrency((c) => c || t.default_currency);
       })
       .catch(() => undefined);
-  }, []);
+  }, [existing, presetCustomer]);
 
   const activeCurrency = currency || defaultCurrency;
   const totals = useMemo(() => estimateTotals(rows, discountMode, discountValue), [rows, discountMode, discountValue]);
@@ -129,6 +135,7 @@ export function DocumentForm({ kind, existing }: { kind: Kind; existing?: Invoic
           ? { customer_id: customerId }
           : { customer_name: customerName.trim(), customer_email: customerEmail.trim() || undefined, customer_phone: customerPhone.trim() || undefined };
       const common = {
+        ...(existing ? {} : contextPayload(context)),
         title: title.trim() || undefined,
         currency: activeCurrency,
         issue_date: issueDate,
@@ -183,8 +190,8 @@ export function DocumentForm({ kind, existing }: { kind: Kind; existing?: Invoic
                   value={customerMode}
                   onChange={setCustomerMode}
                   options={[
-                    { value: "new", label: "New customer" },
                     { value: "existing", label: "Existing customer" },
+                    { value: "new", label: "New customer" },
                   ]}
                 />
               ) : undefined
@@ -192,16 +199,17 @@ export function DocumentForm({ kind, existing }: { kind: Kind; existing?: Invoic
           />
           {customerMode === "existing" ? (
             <div className="stack">
-              {customersFailed && <Alert tone="warning">Your saved customers couldn't be loaded. Reload the page to try again.</Alert>}
+              {customerFailed && <Alert tone="warning">This document's customer couldn't be loaded. Reload the page to try again.</Alert>}
               <Field label="Customer" htmlFor="customer_id" required error={errors.customerId}>
-                <Select id="customer_id" value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
-                  <option value="">Choose a customer…</option>
-                  {customers.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} {c.email ? `(${c.email})` : c.phone ? `(${c.phone})` : ""}
-                    </option>
-                  ))}
-                </Select>
+                <CustomerPicker
+                  id="customer_id"
+                  value={customer}
+                  invalid={Boolean(errors.customerId)}
+                  onChange={(c) => {
+                    setCustomer(c);
+                    setContext({});
+                  }}
+                />
               </Field>
             </div>
           ) : (
@@ -218,6 +226,13 @@ export function DocumentForm({ kind, existing }: { kind: Kind; existing?: Invoic
             </div>
           )}
         </Card>
+
+        {!existing && (
+          <Card>
+            <CardHeader title="Property" description="Optional: link this document to a property, unit or tenancy." />
+            <PropertyContextPicker customer={customerMode === "existing" ? customer : null} value={context} onChange={setContext} />
+          </Card>
+        )}
 
         <Card>
           <CardHeader title="Details" />

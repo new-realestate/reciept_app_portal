@@ -8,6 +8,8 @@ import {
   MailOpen,
   Pause,
   Send,
+  ShieldAlert,
+  ShieldCheck,
   Undo2,
   XCircle,
   type LucideIcon,
@@ -20,6 +22,7 @@ import type {
   ScheduleStatus,
   UpcomingPayment,
 } from "../../lib/documentTypes";
+import type { KycStatus, PropertyStatus, RenterStatus, TenancyStatus } from "../../lib/propertyTypes";
 import type { DeliveryStatus, ReceiptStatus } from "../../lib/types";
 import { Badge } from "./ui";
 
@@ -96,6 +99,34 @@ const DUE_STATUS: Record<UpcomingPayment["status"], StatusStyle> = {
   upcoming: { tone: "info", icon: Clock, label: "Upcoming" },
 };
 
+const KYC_STATUS: Record<KycStatus, StatusStyle> = {
+  not_submitted: { tone: "neutral", icon: FileEdit, label: "KYC not submitted" },
+  pending_review: { tone: "info", icon: Clock, label: "KYC pending review" },
+  verified: { tone: "success", icon: ShieldCheck, label: "KYC verified" },
+  rejected: { tone: "danger", icon: XCircle, label: "KYC rejected" },
+  requires_correction: { tone: "warning", icon: ShieldAlert, label: "KYC needs correction" },
+  expired: { tone: "warning", icon: AlertTriangle, label: "KYC expired" },
+};
+
+const PROPERTY_STATUS: Record<PropertyStatus, StatusStyle> = {
+  active: { tone: "success", icon: CheckCircle2, label: "Active" },
+  inactive: { tone: "warning", icon: Pause, label: "Inactive" },
+  archived: { tone: "neutral", icon: Ban, label: "Archived" },
+};
+
+const TENANCY_STATUS: Record<TenancyStatus, StatusStyle> = {
+  draft: { tone: "neutral", icon: FileEdit, label: "Draft" },
+  active: { tone: "success", icon: CheckCircle2, label: "Active" },
+  ended: { tone: "neutral", icon: Clock, label: "Ended" },
+  terminated: { tone: "danger", icon: Ban, label: "Terminated" },
+};
+
+const RENTER_STATUS: Record<RenterStatus, StatusStyle> = {
+  active: { tone: "success", icon: CheckCircle2, label: "Current tenant" },
+  former: { tone: "neutral", icon: Clock, label: "Former tenant" },
+  archived: { tone: "neutral", icon: Ban, label: "Archived" },
+};
+
 function StyledBadge({ style, fallback }: { style: StatusStyle | undefined; fallback: string }) {
   const s = style ?? { tone: "neutral" as Tone, icon: Clock, label: fallback };
   return (
@@ -154,3 +185,16 @@ export function AccountStatusBadge({ suspendedAt }: { suspendedAt: string | null
     </Badge>
   );
 }
+
+export const KycStatusBadge = ({ status }: { status: KycStatus | null }) => (
+  <StyledBadge style={KYC_STATUS[status ?? "not_submitted"]} fallback={status ?? "not_submitted"} />
+);
+export const PropertyStatusBadge = ({ status }: { status: PropertyStatus }) => (
+  <StyledBadge style={PROPERTY_STATUS[status]} fallback={status} />
+);
+export const TenancyStatusBadge = ({ status }: { status: TenancyStatus }) => (
+  <StyledBadge style={TENANCY_STATUS[status]} fallback={status} />
+);
+export const RenterStatusBadge = ({ status }: { status: RenterStatus }) => (
+  <StyledBadge style={RENTER_STATUS[status]} fallback={status} />
+);

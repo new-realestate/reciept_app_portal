@@ -1,4 +1,4 @@
-import type { UserRole } from "../lib/types";
+import type { Me, Permission, UserRole } from "../lib/types";
 
 /**
  * Client-side permission gates for UI purposes only — the API is the source of
@@ -20,6 +20,12 @@ export const permissions = {
   canManageDocuments: (role: UserRole) => role === "owner" || role === "admin",
 };
 
+/** Owners and admins hold every permission; staff hold the flags the owner/admin gave them. */
+export function hasPermission(me: Pick<Me, "is_manager" | "permissions"> | null | undefined, perm: Permission): boolean {
+  if (!me) return false;
+  return me.is_manager || me.permissions.includes(perm);
+}
+
 export const ROLE_LABELS: Record<UserRole, string> = {
   owner: "Owner",
   admin: "Admin",
@@ -27,7 +33,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
 };
 
 export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
-  owner: "Full access to receipts, customers, branding, and bank details.",
-  admin: "Full access to receipts, customers, branding, and bank details.",
-  staff: "Can issue, view, and send receipts. Business settings are read-only.",
+  owner: "Full control of the business, including admins.",
+  admin: "Manages the business: properties, staff, tenants, documents and settings.",
+  staff: "Works on the properties assigned to them, within the permissions the owner set. Business settings are read-only.",
 };

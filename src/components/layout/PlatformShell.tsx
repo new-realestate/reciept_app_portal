@@ -4,6 +4,8 @@ import { Building2, ChevronsUpDown, LayoutDashboard, LogOut, Menu, Monitor, Moon
 import { useAuth } from "../../auth/AuthContext";
 import { useMediaQuery } from "../../hooks/useMediaQuery";
 import { applyTheme, getStoredTheme, resolvedTheme, type ThemePreference } from "../../lib/theme";
+import { applyBusinessTheme } from "../../lib/brandTheme";
+import { setSiteName } from "../../hooks/useDocumentTitle";
 import { IconButton } from "../ui/ui";
 import { DropdownMenu, type MenuItem } from "../ui/DropdownMenu";
 
@@ -18,6 +20,12 @@ export function PlatformShell() {
   const [theme, setTheme] = useState<ThemePreference>(getStoredTheme);
   const toggleRef = useRef<HTMLButtonElement>(null);
   const sidebarRef = useRef<HTMLElement>(null);
+
+  // Platform pages always use the default look, not the last business's branding.
+  useEffect(() => {
+    applyBusinessTheme(null);
+    setSiteName(null);
+  }, []);
 
   useEffect(() => {
     setMenuOpen(false);

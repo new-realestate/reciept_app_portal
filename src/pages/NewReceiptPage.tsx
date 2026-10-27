@@ -1,13 +1,12 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
-import { receiptsApi } from "../api/receipts";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { customersApi } from "../api/customers";
+import { receiptsApi } from "../api/receipts";
 import { tenantApi } from "../api/tenant";
 import { ApiError } from "../lib/apiClient";
 import { centsFromInput } from "../lib/format";
-import { PAYMENT_METHOD_LABELS, type Customer, type PaymentMethodType } from "../lib/types";
+import { PAYMENT_METHOD_LABELS, type Customer, type PaymentMethodType, type PropertyContext } from "../lib/types";
 import {
-  Alert,
   Button,
   ButtonLink,
   Card,
@@ -21,12 +20,14 @@ import {
   Textarea,
 } from "../components/ui/ui";
 import { useToast } from "../components/ToastContext";
+import { CustomerPicker } from "../components/documents/CustomerPicker";
+import { contextPayload, PropertyContextPicker } from "../components/documents/PropertyContextPicker";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 
 const PAYMENT_METHODS = Object.entries(PAYMENT_METHOD_LABELS) as [PaymentMethodType, string][];
 
 // Field ids in on-screen order, used to move focus to the first invalid field.
-const FIELD_ORDER = ["customerId", "customerName", "customerContact", "amount", "paidAt", "reason"] as const;
+const FIELD_ORDER = ["customerId", "customerName", "customerContact", "amount", "paidAt", "reason", "confirmed"] as const;
 const FIELD_ELEMENT_IDS: Record<(typeof FIELD_ORDER)[number], string> = {
   customerId: "customer_id",
   customerName: "customer_name",
@@ -34,18 +35,20 @@ const FIELD_ELEMENT_IDS: Record<(typeof FIELD_ORDER)[number], string> = {
   amount: "amount",
   paidAt: "paid_at",
   reason: "reason",
+  confirmed: "payment_confirmed",
 };
 
 export function NewReceiptPage() {
   useDocumentTitle("New receipt");
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const { notify } = useToast();
 
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [customersFailed, setCustomersFailed] = useState(false);
   const [currency, setCurrency] = useState<string | null>(null);
-  const [customerMode, setCustomerMode] = useState<"existing" | "new">("new");
-  const [customerId, setCustomerId] = useState("");
+  const [customerMode, setCustomerMode] = useState<"existing" | "new">("existing");
+  const [customer, setCustomer] = useState<Customer | null>(null);
+  const [context, setContext] = useState<PropertyContext>({});
+  const [confirmed, setConfirmed] = useState(false);
   const [customerName, setCustomerName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
@@ -61,10 +64,11 @@ export function NewReceiptPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    customersApi
-      .list()
-      .then(setCustomers)
-      .catch(() => setCustomersFailed(true));
+    const presetCustomer = params.get("customer");
+    if (presetCustomer) customersApi.get(presetCustomer).then(setCustomer).catch(() => undefined);
+  }, [params]);
+
+  useEffect(() => {
     tenantApi
       .getMine()
       .then((t) => setCurrency(t.default_currency))
@@ -73,7 +77,7 @@ export function NewReceiptPage() {
 
   function validate(): boolean {
     const next: Record<string, string> = {};
-    if (customerMode === "existing" && !customerId) next.customerId = "Choose a payer.";
+    if (customerMode === "existing" && !customer) next.customerId = "Choose a payer.";
     if (customerMode === "new") {
       if (!customerName.trim()) next.customerName = "Payer name is required.";
       if (!customerEmail.trim() && !customerPhone.trim()) next.customerContact = "Provide an email or phone number.";
@@ -81,6 +85,8 @@ export function NewReceiptPage() {
     if (!amount || centsFromInput(amount) <= 0) next.amount = "Enter an amount greater than zero.";
     if (!reason.trim()) next.reason = "Describe the reason for payment.";
     if (!paidAt) next.paidAt = "Select the date paid.";
+    else if (paidAt > new Date().toISOString().slice(0, 10)) next.paidAt = "The payment date can't be in the future.";
+    if (!confirmed) next.confirmed = "Confirm the payment has been received before issuing the receipt.";
     setErrors(next);
 
     const firstInvalid = FIELD_ORDER.find((key) => next[key]);
@@ -94,7 +100,9 @@ export function NewReceiptPage() {
     setIsSubmitting(true);
     try {
       const receipt = await receiptsApi.create({
-        customer_id: customerMode === "existing" ? customerId : undefined,
+        payment_received_confirmed: true,
+        ...contextPayload(context),
+        customer_id: customerMode === "existing" ? customer?.id : undefined,
         customer_name: customerMode === "new" ? customerName : undefined,
         customer_email: customerMode === "new" ? customerEmail || undefined : undefined,
         customer_phone: customerMode === "new" ? customerPhone || undefined : undefined,
@@ -133,29 +141,25 @@ export function NewReceiptPage() {
                   value={customerMode}
                   onChange={setCustomerMode}
                   options={[
-                    { value: "new", label: "New payer" },
                     { value: "existing", label: "Existing payer" },
+                    { value: "new", label: "New payer" },
                   ]}
                 />
               }
             />
 
             {customerMode === "existing" ? (
-              <div className="stack">
-                {customersFailed && (
-                  <Alert tone="warning">Your saved payers couldn't be loaded. Switch to "New payer" or reload the page.</Alert>
-                )}
-                <Field label="Payer" htmlFor="customer_id" required error={errors.customerId}>
-                  <Select id="customer_id" value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
-                    <option value="">Choose a payer…</option>
-                    {customers.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} {c.email ? `(${c.email})` : c.phone ? `(${c.phone})` : ""}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-              </div>
+              <Field label="Payer" htmlFor="customer_id" required error={errors.customerId}>
+                <CustomerPicker
+                  id="customer_id"
+                  value={customer}
+                  invalid={Boolean(errors.customerId)}
+                  onChange={(c) => {
+                    setCustomer(c);
+                    setContext({});
+                  }}
+                />
+              </Field>
             ) : (
               <div className="form-grid">
                 <Field label="Payer name" htmlFor="customer_name" required error={errors.customerName} className="form-grid-full">
@@ -169,6 +173,11 @@ export function NewReceiptPage() {
                 </Field>
               </div>
             )}
+          </Card>
+
+          <Card>
+            <CardHeader title="Property" description="Link the payment to a property or tenancy, if it relates to one." />
+            <PropertyContextPicker customer={customerMode === "existing" ? customer : null} value={context} onChange={setContext} />
           </Card>
 
           <Card>
@@ -211,6 +220,28 @@ export function NewReceiptPage() {
               <Field label="Reason for payment" htmlFor="reason" required error={errors.reason} hint="State it in full, e.g. “Rent for July 2026”." className="form-grid-full">
                 <Textarea id="reason" rows={3} value={reason} onChange={(e) => setReason(e.target.value)} />
               </Field>
+            </div>
+
+            <div className="stack" style={{ marginTop: "var(--space-5)" }}>
+              <label className="checkbox-row">
+                <input
+                  id="payment_confirmed"
+                  type="checkbox"
+                  checked={confirmed}
+                  aria-invalid={errors.confirmed ? true : undefined}
+                  aria-describedby={errors.confirmed ? "payment_confirmed-error" : undefined}
+                  onChange={(e) => setConfirmed(e.target.checked)}
+                />
+                <span>
+                  I confirm this payment has already been received
+                  <small>A receipt is proof of money received. This app doesn't collect or move payments.</small>
+                </span>
+              </label>
+              {errors.confirmed && (
+                <p className="field-error" id="payment_confirmed-error" role="alert">
+                  {errors.confirmed}
+                </p>
+              )}
             </div>
 
             <div className="action-bar">

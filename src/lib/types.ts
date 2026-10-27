@@ -50,7 +50,34 @@ export interface Me {
   email: string;
   role: UserRole;
   signature_image_url: string | null;
+  phone: string | null;
+  /** Effective permission flags; owners and admins hold all of them. */
+  permissions: Permission[];
+  is_manager: boolean;
+  /** Properties a staff member may manage (empty for owners/admins, who see every property). */
+  assigned_property_ids: string[];
+  /** The business the member works in: shown in the portal header and used for the accent colour. */
+  business: BusinessBranding | null;
 }
+
+export interface BusinessBranding {
+  id: string;
+  name: string;
+  logo_url: string | null;
+  brand_color: string | null;
+}
+
+export type Permission =
+  | "customers.view"
+  | "customers.manage"
+  | "renters.manage"
+  | "renters.kyc_review"
+  | "receipts.issue"
+  | "invoices.issue"
+  | "invoices.record_payment"
+  | "quotations.issue"
+  | "documents.view"
+  | "reports.view";
 
 export interface SignupPayload {
   business_name: string;
@@ -79,6 +106,7 @@ export interface Tenant {
   id: string;
   business_name: string;
   logo_url: string | null;
+  brand_color: string | null;
   po_box: string | null;
   physical_address: string | null;
   contact_phone: string | null;
@@ -94,6 +122,8 @@ export type ReceiptTemplate = "classic" | "modern";
 
 export interface TenantUpdatePayload {
   receipt_template?: ReceiptTemplate;
+  /** #rrggbb, or null to go back to the default colour. */
+  brand_color?: string | null;
   business_name?: string;
   po_box?: string;
   physical_address?: string;
@@ -103,20 +133,75 @@ export interface TenantUpdatePayload {
   bank_account_number?: string;
 }
 
+export type CustomerType = "individual" | "business";
+
 export interface Customer {
   id: string;
   name: string;
   email: string | null;
   phone: string | null;
+  customer_type: CustomerType;
+  legal_name: string | null;
+  billing_address: string | null;
+  tax_identification_number: string | null;
+  notes: string | null;
+  contact_preference: string | null;
+  status: "active" | "archived";
+  /** Set when this customer also has a tenant profile. */
+  renter_id: string | null;
+  created_at: string | null;
 }
 
 export interface CustomerCreatePayload {
   name: string;
   email?: string;
   phone?: string;
+  customer_type?: CustomerType;
+  legal_name?: string;
+  billing_address?: string;
+  tax_identification_number?: string;
+  notes?: string;
+  /** Create a separate record even though one with the same email/phone exists. */
+  allow_duplicate?: boolean;
 }
 
-export interface ReceiptCreatePayload {
+export type CustomerUpdatePayload = Partial<Omit<CustomerCreatePayload, "allow_duplicate">>;
+
+export interface CustomerMatches {
+  exact: Customer[];
+  possible: Customer[];
+}
+
+export interface CustomerDocumentSummary {
+  id: string;
+  kind: "receipt" | "invoice" | "quotation";
+  number: string | null;
+  status: string;
+  date: string;
+  currency: string;
+  amount_cents: number;
+  outstanding_cents: number | null;
+  property_id: string | null;
+}
+
+export interface CustomerDocuments {
+  customer: Customer;
+  receipts: CustomerDocumentSummary[];
+  invoices: CustomerDocumentSummary[];
+  quotations: CustomerDocumentSummary[];
+  outstanding_by_currency: Record<string, number>;
+}
+
+/** Optional link from a document to a property, unit or tenancy (all empty for general transactions). */
+export interface PropertyContext {
+  property_id?: string | null;
+  unit_id?: string | null;
+  tenancy_id?: string | null;
+}
+
+export interface ReceiptCreatePayload extends PropertyContext {
+  /** The issuer confirms the money has already been received. */
+  payment_received_confirmed: true;
   customer_id?: string;
   customer_name?: string;
   customer_email?: string;
@@ -150,6 +235,10 @@ export interface Receipt {
   hosted_view_token: string;
   pdf_url: string | null;
   created_at: string;
+  property_id: string | null;
+  unit_id: string | null;
+  tenancy_id: string | null;
+  issued_by_user_id: string | null;
 }
 
 export interface DeliveryAttempt {
@@ -182,9 +271,11 @@ export interface ReceiptListFilters {
   date_to?: string;
   amount_cents?: number;
   status?: ReceiptStatus;
+  customer_id?: string;
+  property_id?: string;
 }
 
 export interface ApiErrorBody {
   detail?: string | { msg: string; loc: (string | number)[] }[];
-  error?: { message?: string; status_code?: number };
+  error?: { message?: string | ({ message?: string } & Record<string, unknown>); status_code?: number };
 }

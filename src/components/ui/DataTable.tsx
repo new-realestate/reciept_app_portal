@@ -140,27 +140,27 @@ export function DataTable<T>({
           <tbody>
             {isLoading
               ? Array.from({ length: 5 }, (_, i) => (
-                  <tr key={`skeleton-${i}`}>
-                    {columns.map((c) => (
-                      <td key={c.key} data-label={c.header}>
-                        <Skeleton width={c.actions ? "24px" : "80%"} />
-                      </td>
-                    ))}
-                  </tr>
-                ))
+                <tr key={`skeleton-${i}`}>
+                  {columns.map((c) => (
+                    <td key={c.key} data-label={c.header}>
+                      <Skeleton width={c.actions ? "24px" : "80%"} />
+                    </td>
+                  ))}
+                </tr>
+              ))
               : visible.map((row) => (
-                  <tr key={rowKey(row)}>
-                    {columns.map((c) => (
-                      <td
-                        key={c.key}
-                        data-label={c.actions ? "" : c.header}
-                        className={c.actions ? "cell-actions" : c.align === "end" ? "cell-end" : undefined}
-                      >
-                        {c.cell(row)}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
+                <tr key={rowKey(row)}>
+                  {columns.map((c) => (
+                    <td
+                      key={c.key}
+                      data-label={c.actions ? "" : c.header}
+                      className={c.actions ? "cell-actions" : c.align === "end" ? "cell-end" : undefined}
+                    >
+                      {c.cell(row)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
           </tbody>
         </table>
       </div>

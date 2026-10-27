@@ -6,6 +6,7 @@ import { ApiError } from "../lib/apiClient";
 import type { InvoiceListFilters, Quotation } from "../lib/documentTypes";
 import { formatDay, formatMoney } from "../lib/format";
 import { Button, ButtonLink, Card, EmptyState, Field, Input, PageHeader, Select } from "../components/ui/ui";
+import { PropertyFilter } from "../components/documents/PropertyFilter";
 import { DataTable, type Column } from "../components/ui/DataTable";
 import { DropdownMenu } from "../components/ui/DropdownMenu";
 import { QuotationStatusBadge } from "../components/ui/StatusBadge";
@@ -147,6 +148,7 @@ export function QuotationsPage() {
               <option value="cancelled">Cancelled</option>
             </Select>
           </Field>
+          <PropertyFilter id="quo_property" value={filters.property_id ?? ""} onChange={(v) => setFilter("property_id", v)} />
           <Field label="Issued from" htmlFor="quo_from">
             <Input id="quo_from" type="date" value={filters.date_from ?? ""} onChange={(e) => setFilter("date_from", e.target.value || undefined)} />
           </Field>

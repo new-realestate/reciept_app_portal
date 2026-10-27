@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Eraser, Eye, PenLine, Save, Trash2, Undo2, Upload } from "lucide-react";
 import { tenantApi } from "../api/tenant";
+import { kycApi } from "../api/kyc";
 import { usersApi } from "../api/users";
 import { useAuth } from "../auth/AuthContext";
 import { ROLE_DESCRIPTIONS, ROLE_LABELS } from "../auth/permissions";
@@ -9,6 +10,7 @@ import type { Me } from "../lib/types";
 import { Alert, Badge, Button, Card, CardHeader, ErrorState, PageHeader, SegmentedControl, Skeleton } from "../components/ui/ui";
 import { ConfirmDialog, Modal } from "../components/ui/Modal";
 import { SignaturePad, type SignaturePadHandle } from "../components/SignaturePad";
+import { KycPanel } from "../components/kyc/KycPanel";
 import { useToast } from "../components/ToastContext";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 
@@ -127,7 +129,7 @@ export function ProfilePage() {
 
   return (
     <div>
-      <PageHeader title="Profile" subtitle="Your role, and the signature printed on receipts you issue." />
+      <PageHeader title="Profile" subtitle="Your role, the signature printed on receipts you issue, and your identity verification." />
 
       <div className="page-grid">
         <Card>
@@ -258,6 +260,12 @@ export function ProfilePage() {
           )}
         </Card>
       </div>
+
+      {!session.impersonating && session.role !== "owner" && (
+        <div style={{ marginTop: "var(--space-5)" }}>
+          <KycPanel load={kycApi.mine} title="My verification (KYC)" />
+        </div>
+      )}
 
       {preview && (
         <Modal

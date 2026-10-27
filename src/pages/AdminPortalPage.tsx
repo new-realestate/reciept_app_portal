@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { Check, ImageUp } from "lucide-react";
 import { tenantApi } from "../api/tenant";
 import { useAuth } from "../auth/AuthContext";
+import { useAccess } from "../auth/AccessContext";
 import { permissions } from "../auth/permissions";
 import { ApiError } from "../lib/apiClient";
 import { handleRadioGroupKeyDown } from "../lib/a11y";
@@ -18,6 +19,7 @@ import {
   Spinner,
 } from "../components/ui/ui";
 import { useToast } from "../components/ToastContext";
+import { BrandColorCard } from "../components/BrandColorCard";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 
 const TEMPLATE_OPTIONS: { value: ReceiptTemplate; title: string; description: string }[] = [
@@ -25,7 +27,7 @@ const TEMPLATE_OPTIONS: { value: ReceiptTemplate; title: string; description: st
   { value: "modern", title: "Modern", description: "Accent header, highlighted amount and a clean layout." },
 ];
 
-type FormState = Required<Omit<TenantUpdatePayload, "receipt_template">>;
+type FormState = Required<Omit<TenantUpdatePayload, "receipt_template" | "brand_color">>;
 
 function formFromTenant(t: Tenant): FormState {
   return {
@@ -42,6 +44,7 @@ function formFromTenant(t: Tenant): FormState {
 export function AdminPortalPage() {
   useDocumentTitle("Business settings");
   const { session } = useAuth();
+  const { refresh: refreshAccess } = useAccess();
   const { notify } = useToast();
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -90,6 +93,7 @@ export function AdminPortalPage() {
       const updated = await tenantApi.update(payload);
       setTenant(updated);
       setForm(formFromTenant(updated));
+      await refreshAccess(); // the business name appears in the portal header
       notify("Business settings saved. Changes apply to future receipts only.", "success");
     } catch (err) {
       notify(err instanceof ApiError ? err.message : "Could not save changes.", "error");
@@ -112,6 +116,17 @@ export function AdminPortalPage() {
     }
   }
 
+  async function handleBrandColor(color: string | null) {
+    try {
+      const updated = await tenantApi.update({ brand_color: color });
+      setTenant((prev) => (prev ? { ...prev, brand_color: updated.brand_color } : updated));
+      await refreshAccess(); // recolours the portal for this session; teammates get it on their next load
+      notify(color ? "Brand colour saved." : "Brand colour reset to the default.", "success");
+    } catch (err) {
+      notify(err instanceof ApiError ? err.message : "Could not save the colour.", "error");
+    }
+  }
+
   async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file || !canUploadLogo) return;
@@ -119,6 +134,7 @@ export function AdminPortalPage() {
     try {
       const res = await tenantApi.uploadLogo(file);
       setTenant((prev) => (prev ? { ...prev, logo_url: res.logo_url } : prev));
+      await refreshAccess();
       notify("Logo updated.", "success");
     } catch (err) {
       notify(err instanceof ApiError ? err.message : "Could not upload the logo.", "error");
@@ -238,7 +254,7 @@ export function AdminPortalPage() {
 
         <div className="stack">
           <Card>
-            <CardHeader title="Logo" description="Appears in the receipt letterhead." />
+            <CardHeader title="Logo" description="Shown in the portal for your team and in the receipt letterhead." />
             <div className="image-preview">
               {tenant.logo_url ? <img src={tenant.logo_url} alt={`${tenant.business_name} logo`} /> : <span>No logo uploaded yet</span>}
             </div>
@@ -264,6 +280,8 @@ export function AdminPortalPage() {
               </>
             )}
           </Card>
+
+          <BrandColorCard value={tenant.brand_color} canEdit={canEdit} onSave={handleBrandColor} />
 
           <Card>
             <CardHeader title="Receipt design" description="Choose how your receipts look. Applies to new receipts." />

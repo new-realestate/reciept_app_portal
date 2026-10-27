@@ -2,6 +2,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { jwtDecode } from "jwt-decode";
 import { getStoredAdminToken, getStoredToken, onUnauthorized, setStoredAdminToken, setStoredToken } from "../lib/apiClient";
 import type { AuthSession, JwtClaims } from "../lib/types";
+import { applyBusinessTheme } from "../lib/brandTheme";
+import { setSiteName } from "../hooks/useDocumentTitle";
 
 interface AuthContextValue {
   session: AuthSession | null;
@@ -45,6 +47,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStoredToken(null);
     setStoredAdminToken(null);
     setSession(null);
+    // Back to the neutral look for the sign-in page.
+    applyBusinessTheme(null);
+    setSiteName(null);
   }, []);
 
   const loginWithToken = useCallback((token: string) => {
@@ -61,6 +66,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const stopImpersonation = useCallback(() => {
+    applyBusinessTheme(null);
+    setSiteName(null);
     const own = getStoredAdminToken();
     const restored = own ? sessionFromToken(own) : null;
     setStoredAdminToken(null);

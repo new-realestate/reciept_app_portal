@@ -44,3 +44,8 @@ export function formatDateTime(value: string): string {
   if (Number.isNaN(d.getTime())) return value;
   return d.toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
+
+/** An amount without a currency code, e.g. "1,500,000" (for values whose currency is set elsewhere). */
+export function formatAmount(cents: number): string {
+  return (cents / 100).toLocaleString(undefined, { maximumFractionDigits: 2 });
+}

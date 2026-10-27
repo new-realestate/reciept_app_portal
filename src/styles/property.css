@@ -1,0 +1,152 @@
+/* Customer picker, property pages, team and KYC. Uses the tokens in tokens.css. */
+
+.picker { display: grid; gap: var(--space-2); }
+.picker-results {
+  display: grid;
+  gap: var(--space-1);
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-2);
+  background: var(--surface);
+}
+.picker-results > p { margin: var(--space-2); }
+.picker-option {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.picker-option:hover, .picker-option:focus-visible { background: var(--surface-hover); }
+.picker-option span > span { display: block; font-size: var(--text-sm); }
+.picker-selected {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-alt);
+}
+.picker-selected strong { margin-right: var(--space-2); }
+
+/* Matches shown when a new customer looks like an existing one */
+.match-list { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.match-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+/* Lists of people/properties inside a card */
+.member-list { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.member-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--border);
+}
+.member-list li:first-child { border-top: 0; }
+.member-list .muted-text { font-size: var(--text-sm); }
+
+.permission-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--space-3); }
+
+.badge-row { display: inline-flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+
+.kyc-docs { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.kyc-docs li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.kyc-upload { display: flex; gap: var(--space-3); align-items: flex-end; flex-wrap: wrap; }
+.kyc-upload .field { min-width: 180px; }
+
+@media (max-width: 640px) {
+  .picker-selected, .match-list li, .member-list li, .kyc-docs li { flex-direction: column; align-items: flex-start; }
+}
+
+/* Brand colour picker */
+.brand-color-row { display: flex; gap: var(--space-4); align-items: flex-end; flex-wrap: wrap; }
+.brand-color-input {
+  width: 56px;
+  height: 42px;
+  padding: 2px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  cursor: pointer;
+}
+.brand-color-input:disabled { cursor: not-allowed; opacity: 0.6; }
+.swatch-row { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-full);
+  border: 2px solid var(--surface);
+  box-shadow: 0 0 0 1px var(--border-strong);
+  cursor: pointer;
+}
+.swatch--selected { box-shadow: 0 0 0 2px var(--text); }
+.swatch:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.brand-preview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: #ffffff;
+}
+.brand-preview-btn {
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--p-brand);
+  color: var(--p-contrast);
+  font-weight: 600;
+  font-size: var(--text-sm);
+}
+.brand-preview-link { color: var(--p-brand); text-decoration: underline; font-size: var(--text-sm); }
+.brand-preview-badge {
+  padding: 2px var(--space-3);
+  border-radius: var(--radius-full);
+  background: var(--p-soft);
+  color: var(--p-brand);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+/* KYC document viewer */
+.kyc-viewer {
+  display: block;
+  width: 100%;
+  max-height: 65vh;
+  object-fit: contain;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-alt);
+}
+.kyc-viewer--pdf { height: 65vh; }
